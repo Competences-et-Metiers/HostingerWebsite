@@ -1,0 +1,9 @@
+## Pages
+- [Calendrier - Plateforme Bilan de Compétences](/calendar): Consultez votre calendrier d
+- [Connexion - Plateforme Bilan de Compétences](/login): Connectez-vous à votre compte pour accéder à votre bilan de compétences.
+- [Générateur de CV - Plateforme Bilan de Compétences](/cvgenerator): Créez un CV professionnel en quelques clics.
+- [Gestion des Utilisateurs - Plateforme Bilan de Compétences](/usermanagement): Gérez les utilisateurs de la plateforme.
+- [Inscription - Plateforme Bilan de Compétences](/register): Créez un compte pour commencer votre bilan de compétences.
+- [Mon Consultant - Plateforme Bilan de Compétences](/consultant): Informations sur votre consultant.
+- [Mon Profil - Plateforme Bilan de Compétences](/profile): Gérez vos informations de profil.
+- [Paramètres - Plateforme Bilan de Compétences](/settings): Gérez les paramètres de votre compte.
