@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Target, BookOpen, Award } from 'lucide-react';
 import StatsCard from '@/components/StatsCard';
+import { Helmet } from 'react-helmet';
 
 const Dashboard = () => {
   const stats = [
@@ -36,7 +37,11 @@ const Dashboard = () => {
   ];
 
   return (
-    <section className="space-y-8">
+    <>
+      <Helmet>
+        <title>Dashboard</title>
+      </Helmet>
+      <section className="space-y-8">
       <div className="text-center">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
@@ -68,7 +73,8 @@ const Dashboard = () => {
           </motion.div>
         ))}
       </div>
-    </section>
+      </section>
+    </>
   );
 };
 

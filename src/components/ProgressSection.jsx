@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Calendar, Award, Target } from 'lucide-react';
 import ProgressChart from '@/components/ProgressChart';
+import { Helmet } from 'react-helmet';
 
 const ProgressSection = () => {
   const progressData = [
@@ -37,6 +38,10 @@ const ProgressSection = () => {
   ];
 
   return (
+    <>
+      <Helmet>
+        <title>Progression</title>
+      </Helmet>
     <section className="space-y-8">
       <div>
         <h2 className="text-3xl font-bold text-white mb-2">Suivi des Progrès</h2>
@@ -90,6 +95,7 @@ const ProgressSection = () => {
         </motion.div>
       </div>
     </section>
+    </>
   );
 };
 
