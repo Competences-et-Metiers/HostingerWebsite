@@ -9,4 +9,7 @@ Current demo ADFs:
 
 - 2 créneau created, unused 9h total
 
-Need to find a data processing code for Edge functions or create own data processing private API 
+Current data processing structure for time/duration dashboard:
+From `creneaux.php` response we get time spent on BDC
+From `actions_de_formation.php` response we get planned duration of a BDC
+We then subtract the duration by time spent to display how many time is left in the BDC.

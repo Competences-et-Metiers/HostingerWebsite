@@ -1,45 +1,89 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Target, BookOpen, Award } from 'lucide-react';
 import StatsCard from '@/components/StatsCard';
 import { Helmet } from 'react-helmet';
+import { supabaseUrl, supabaseAnonKey, supabase } from '@/lib/customSupabaseClient';
 
 const Dashboard = () => {
+  const [spentHours, setSpentHours] = useState(null);
+  const [remainingHours, setRemainingHours] = useState(null);
+  const [totalHours, setTotalHours] = useState(null);
+
+  const formatHours = (value) => {
+    if (value === null || value === undefined || Number.isNaN(value)) return "—";
+    const totalMinutes = Math.round(Number(value) * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    if (m === 0) return `${h} h`;
+    if (h === 0) return `${m} min`;
+    return `${h} h ${m} min`;
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const fetchHours = async () => {
+      try {
+        const ADF_ID = '129';
+        const functionsBase = supabaseUrl.replace('supabase.co', 'functions.supabase.co');
+        const url = `${functionsBase}/test?id=${encodeURIComponent(ADF_ID)}`;
+        let authHeader = supabaseAnonKey;
+        try {
+          const { data } = await supabase.auth.getSession();
+          const jwt = data?.session?.access_token;
+          if (jwt) authHeader = `Bearer ${jwt}`;
+        } catch (_) {}
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: {
+            apikey: supabaseAnonKey,
+            Authorization: authHeader
+          },
+          signal: controller.signal
+        });
+        if (!res.ok) {
+          return;
+        }
+        const data = await res.json();
+        if (typeof data?.spent_hours === 'number') setSpentHours(Number(data.spent_hours));
+        if (typeof data?.remaining_hours === 'number') setRemainingHours(Number(data.remaining_hours));
+        if (typeof data?.total_hours === 'number') setTotalHours(Number(data.total_hours));
+      } catch (_) {
+        // swallow
+      }
+    };
+    fetchHours();
+    return () => controller.abort();
+  }, []);
+
   const stats = [
     {
-      title: "Compétences évaluées",
-      value: "24",
-      change: "+3 cette semaine",
+      title: "Heures effectuées",
+      value: formatHours(spentHours),
+      change: "",
       icon: TrendingUp,
-      color: "from-blue-500 to-cyan-500"
+      color: "from-emerald-500 to-teal-500"
     },
     {
-      title: "Objectifs en cours",
-      value: "8",
-      change: "2 complétés récemment",
+      title: "Heures restantes",
+      value: formatHours(remainingHours),
+      change: "",
       icon: Target,
-      color: "from-purple-500 to-pink-500"
-    },
-    {
-      title: "Formations suivies",
-      value: "12",
-      change: "+1 ce mois",
-      icon: BookOpen,
       color: "from-green-500 to-emerald-500"
     },
     {
-      title: "Certifications",
-      value: "5",
-      change: "1 en attente",
-      icon: Award,
-      color: "from-orange-500 to-red-500"
+      title: "Heures totales",
+      value: formatHours(totalHours),
+      change: "",
+      icon: BookOpen,
+      color: "from-indigo-500 to-sky-500"
     }
   ];
 
   return (
     <>
       <Helmet>
-        <title>Dashboard</title>
+        <title>Tableau de Bord</title>
       </Helmet>
       <section className="space-y-8">
       <div className="text-center">

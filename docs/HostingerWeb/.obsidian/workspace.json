@@ -20,24 +20,21 @@
               "icon": "lucide-file",
               "title": "POC"
             }
-          }
-        ]
-      },
-      {
-        "id": "143c361bbf71b19a",
-        "type": "tabs",
-        "children": [
+          },
           {
-            "id": "92a8d05af03976bc",
+            "id": "01e4672b629af2be",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "type": "excalidraw",
+              "state": {
+                "file": "Drawing 2025-10-03 10.07.48.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "Drawing 2025-10-03 10.07.48.excalidraw"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -182,12 +179,15 @@
       "daily-notes:Open today's daily note": false,
       "templates:Insert template": false,
       "command-palette:Open command palette": false,
-      "bases:Create new base": false
+      "bases:Create new base": false,
+      "obsidian-excalidraw-plugin:New drawing": false
     }
   },
-  "active": "57c0ee0628d297bd",
+  "active": "01e4672b629af2be",
   "lastOpenFiles": [
-    "Welcome.md",
-    "POC.md"
+    "POC.md",
+    "Drawing 2025-10-03 10.07.48.excalidraw.md",
+    "BDC duration.md",
+    "Welcome.md"
   ]
 }
