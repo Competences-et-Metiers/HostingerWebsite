@@ -9,6 +9,7 @@ const Dashboard = () => {
   const [spentHours, setSpentHours] = useState(null);
   const [remainingHours, setRemainingHours] = useState(null);
   const [totalHours, setTotalHours] = useState(null);
+  const [adfIds, setAdfIds] = useState([]);
 
   const formatHours = (value) => {
     if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -24,7 +25,7 @@ const Dashboard = () => {
     const controller = new AbortController();
     const fetchHours = async () => {
       try {
-        const ADF_ID = '129';
+        const ADF_ID = '447';
         const functionsBase = supabaseUrl.replace('supabase.co', 'functions.supabase.co');
         const url = `${functionsBase}/test?id=${encodeURIComponent(ADF_ID)}`;
         let authHeader = supabaseAnonKey;
@@ -52,7 +53,35 @@ const Dashboard = () => {
         // swallow
       }
     };
+    const fetchAdfs = async () => {
+      try {
+        const functionsBase = supabaseUrl.replace('supabase.co', 'functions.supabase.co');
+        const url = `${functionsBase}/get-adf`;
+        let authHeader = supabaseAnonKey;
+        try {
+          const { data } = await supabase.auth.getSession();
+          const jwt = data?.session?.access_token;
+          if (jwt) authHeader = `Bearer ${jwt}`;
+        } catch (_) {}
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: {
+            apikey: supabaseAnonKey,
+            Authorization: authHeader
+          },
+          signal: controller.signal
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data?.adf_ids)) {
+          setAdfIds(data.adf_ids.map((v) => String(v)));
+        }
+      } catch (_) {
+        // swallow
+      }
+    };
     fetchHours();
+    fetchAdfs();
     return () => controller.abort();
   }, []);
 
@@ -116,6 +145,18 @@ const Dashboard = () => {
             <StatsCard {...stat} />
           </motion.div>
         ))}
+      </div>
+      <div className="mt-8 rounded-lg bg-white/5 p-4">
+        <h3 className="text-white font-semibold mb-2">Your ADFs:</h3>
+        {adfIds.length > 0 ? (
+          <ul className="list-disc list-inside text-purple-200">
+            {adfIds.map((id) => (
+              <li key={id}>{id}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-purple-200">None found.</p>
+        )}
       </div>
       </section>
     </>
