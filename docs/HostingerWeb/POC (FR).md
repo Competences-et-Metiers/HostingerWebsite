@@ -4,6 +4,7 @@
 Cette application a pour objectif d’assurer le bon déroulement des **bilans de compétences**.  
 Les bénéficiaires et les consultants disposeront de **vues distinctes**, adaptées à leurs rôles respectifs.
 
+
 ## Fonctionnalités
 
 Cette WebApp devra proposer un ensemble de fonctionnalités réparties sur plusieurs pages, accessibles depuis la barre de navigation de l’utilisateur.

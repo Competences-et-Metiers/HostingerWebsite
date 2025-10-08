@@ -14,8 +14,11 @@ Aligner la cible fonctionnelle et technique, fixer les décisions d’intégrati
 
 **Source d'identité:**
 
-- Option A: Dendreo est la source; création de compte WebApp lors de l’ajout du bénéficiaire à une ADF.
-- Option B: WebApp (Supabase) est la source; création automatique du bénéficiaire dans Dendreo via API après inscription WebApp.
+Création de compte WebApp lors de l’ajout du bénéficiaire à une ADF.
+
+OU
+
+Création automatique du bénéficiaire dans Dendreo via API après inscription WebApp.
 
 
 **Stratégie de synchronisation:**
@@ -24,13 +27,6 @@ Aligner la cible fonctionnelle et technique, fixer les décisions d’intégrati
 - Polling planifié (cron Supabase Edge Functions) si pas de webhooks
 
 Clé d’appariement: email comme identifiant primaire + fallback via ID Dendreo.
-
-
-Livrables
-
-- Spécification d’intégration (diagrammes de flux, mapping de champs).
-- Registre RGPD (finalités, DCP traitées, base légale, durées).
-- Backlog priorisé (EPICs, US, critères d’acceptation).
 
 ---
 
@@ -246,20 +242,3 @@ Critères d’acceptation types
 - S5–8: MVP vues Bénéficiaire/Consultant
 - S8–9: QA/Sécurité/Performance
 - S9–10: Déploiement public + monitoring
-
----
-
-## Prochaines actions concrètes (à démarrer cette semaine)
-
-1. Valider Option A vs B pour la gestion des comptes et la source de vérité.
-2. Obtenir credentiels Dendreo sandbox + spécs webhooks.
-3. Écrire les migrations SQL Supabase des tables ci‑dessus.
-4. Mettre en place le repo (Vite + TS + Tailwind + Radix + shadcn) et Supabase Auth.
-5. Implémenter la première Edge Function: pull_beneficiaries avec tests.
-6. Esquisser les routes React Router et pages vides pour enchaîner le dev MVP.
-
-Si tu veux, je peux te fournir:
-
-- Les migrations SQL initiales (Supabase CLI)
-- Un squelette de routes React Router v6
-- Un exemple d’Edge Function (TypeScript) pour la sync Dendreo.

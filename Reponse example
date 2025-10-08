@@ -2,34 +2,34 @@
     {
         "id_creneau": "1281",
         "date_add": "2025-02-27 18:22:16",
-        "date_edit": "2025-03-26 10:31:50",
+        "date_edit": "2025-10-08 10:38:21",
         "id_action_de_formation": "124",
         "id_lam": "204",
         "main_lam_id": "204",
         "date_debut": "2025-02-26 10:33:00",
-        "date_fin": "2025-02-26 12:30:00",
+        "date_fin": "2025-02-26 11:00:00",
         "name": "Session 01",
         "icon": "",
         "id_salle_de_formation": "5",
         "formation_presente": "1",
-        "duration": "7020",
+        "duration": "1620",
         "id_add": "2",
-        "id_edit": "2",
+        "id_edit": "12",
         "lcps": [
             {
                 "id_lcp": "4532",
                 "date_add": "2025-02-27 18:26:11",
                 "id_add": "2",
-                "date_edit": "2025-03-06 15:15:18",
-                "id_edit": "2",
+                "date_edit": "2025-10-08 10:38:21",
+                "id_edit": "12",
                 "id_creneau": "1281",
                 "id_lmp": "625",
                 "id_lap": "283",
-                "presence": "",
+                "presence": "0",
                 "justified": "0",
                 "justification": "",
                 "heures_presence": "0.000",
-                "heures_absence": "0.000",
+                "heures_absence": "0.450",
                 "commentaire": "",
                 "rsvp_uuid": "",
                 "rsvp_status": "",
@@ -43,7 +43,7 @@
                     "participant": {
                         "id_participant": "27",
                         "nom": "APPRENANT",
-                        "prenom": "BDC",
+                        "prenom": "TEST",
                         "email": "test@competences-et-metiers.com",
                         "id_entreprise": "25",
                         "particulier": "1"
@@ -98,7 +98,7 @@
                     "participant": {
                         "id_participant": "27",
                         "nom": "APPRENANT",
-                        "prenom": "BDC",
+                        "prenom": "TEST",
                         "email": "test@competences-et-metiers.com",
                         "id_entreprise": "25",
                         "particulier": "1"
@@ -110,29 +110,29 @@
         "url_connexion_invite": "https://extranet.competences-et-metiers.com/liverooms/4328-080d1150-8ea9-4ad5-a826-af84c2c1fe0f"
     },
     {
-        "id_creneau": "3949",
-        "date_add": "2025-07-02 18:20:30",
-        "date_edit": "2025-10-01 16:22:37",
+        "id_creneau": "6448",
+        "date_add": "2025-10-08 10:38:59",
+        "date_edit": "2025-10-08 10:39:32",
         "id_action_de_formation": "124",
         "id_lam": "204",
         "main_lam_id": "204",
-        "date_debut": "2025-07-02 18:25:00",
-        "date_fin": "2025-07-02 20:20:00",
+        "date_debut": "2025-07-16 13:00:00",
+        "date_fin": "2025-07-16 14:00:00",
         "name": "Session 03",
         "icon": "",
         "id_salle_de_formation": "5",
         "formation_presente": "1",
-        "duration": "6900",
-        "id_add": "2",
+        "duration": "3600",
+        "id_add": "12",
         "id_edit": "12",
         "lcps": [
             {
-                "id_lcp": "24596",
-                "date_add": "2025-07-02 18:20:30",
-                "id_add": "2",
-                "date_edit": "2025-07-02 18:20:30",
+                "id_lcp": "30420",
+                "date_add": "2025-10-08 10:38:59",
+                "id_add": "12",
+                "date_edit": "2025-10-08 10:38:59",
                 "id_edit": "0",
-                "id_creneau": "3949",
+                "id_creneau": "6448",
                 "id_lmp": "625",
                 "id_lap": "283",
                 "presence": "",
@@ -153,7 +153,7 @@
                     "participant": {
                         "id_participant": "27",
                         "nom": "APPRENANT",
-                        "prenom": "BDC",
+                        "prenom": "TEST",
                         "email": "test@competences-et-metiers.com",
                         "id_entreprise": "25",
                         "particulier": "1"
@@ -161,7 +161,62 @@
                 }
             }
         ],
-        "url_connexion": "https://extranet.competences-et-metiers.com/participants/liverooms/2417",
-        "url_connexion_invite": "https://extranet.competences-et-metiers.com/liverooms/4328-775083b4-9fbc-4e1d-8112-2d03d537c6e1"
+        "url_connexion": "https://extranet.competences-et-metiers.com/participants/liverooms/4287",
+        "url_connexion_invite": "https://extranet.competences-et-metiers.com/liverooms/4328-34272eb6-c2c3-4bf5-a788-d061a840e93e"
+    },
+    {
+        "id_creneau": "6449",
+        "date_add": "2025-10-08 10:39:15",
+        "date_edit": "2025-10-08 10:41:07",
+        "id_action_de_formation": "124",
+        "id_lam": "204",
+        "main_lam_id": "204",
+        "date_debut": "2025-10-08 11:00:00",
+        "date_fin": "2025-10-08 13:05:00",
+        "name": "Session finale",
+        "icon": "",
+        "id_salle_de_formation": "5",
+        "formation_presente": "1",
+        "duration": "7500",
+        "id_add": "12",
+        "id_edit": "12",
+        "lcps": [
+            {
+                "id_lcp": "30421",
+                "date_add": "2025-10-08 10:39:15",
+                "id_add": "12",
+                "date_edit": "2025-10-08 10:39:15",
+                "id_edit": "0",
+                "id_creneau": "6449",
+                "id_lmp": "625",
+                "id_lap": "283",
+                "presence": "",
+                "justified": "0",
+                "justification": "",
+                "heures_presence": "0.000",
+                "heures_absence": "0.000",
+                "commentaire": "",
+                "rsvp_uuid": "",
+                "rsvp_status": "",
+                "rsvp_sent_at": "",
+                "rsvp_notes": "",
+                "emargement_count": "0",
+                "lap": {
+                    "id_lap": "283",
+                    "id_participant": "27",
+                    "id_entreprise": "25",
+                    "participant": {
+                        "id_participant": "27",
+                        "nom": "APPRENANT",
+                        "prenom": "TEST",
+                        "email": "test@competences-et-metiers.com",
+                        "id_entreprise": "25",
+                        "particulier": "1"
+                    }
+                }
+            }
+        ],
+        "url_connexion": "https://extranet.competences-et-metiers.com/participants/liverooms/4288",
+        "url_connexion_invite": "https://extranet.competences-et-metiers.com/liverooms/4328-8f49fd7a-c41b-4c42-9e50-56797a1c622e"
     }
 ]

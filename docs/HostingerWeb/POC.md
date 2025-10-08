@@ -64,8 +64,9 @@ Display single or collective BDC sessions available
 Contains few competencies cards that should display messages filled by the consultants.
 
 ## Calendar
-To figure a solution for API query to obtain DD agenda of an ADF. Then display on the calendar
-Probably uses the `creneaux.php` query with cleaner property filtering logic
+
+Since we now obtain the ADF from the connected auth user's email.
+We'll then display the planned sessions of that ADF on the calendar using all related ADF IDs.
 
 ## V2 features
 ### CV Generator

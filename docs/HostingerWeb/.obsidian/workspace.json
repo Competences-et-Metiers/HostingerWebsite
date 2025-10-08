@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "POC (FR).md",
+                "file": "Calendar.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "POC (FR)"
+              "title": "Calendar"
             }
           }
         ]
@@ -142,13 +142,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "POC (FR).md",
+                "file": "Calendar.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of POC (FR)"
+              "title": "Outline of Calendar"
             }
           }
         ],
@@ -211,13 +211,17 @@
   },
   "active": "abdd2b04653f7498",
   "lastOpenFiles": [
+    "Pasted image 20251008175201.png",
+    "Dashboard.md",
+    "Calendar.md",
     "Roadmap.md",
+    "Relation diagrams.md",
     "POC (FR).md",
     "POC.md",
-    "Drawing 2025-10-03 10.07.48.excalidraw.md",
+    "BDC duration.md",
+    "Pasted image 20251008171738.png",
     "Pasted image 20251008111015.png",
     "Untitled.canvas",
-    "BDC duration.md",
     "2025-10-06.md",
     "Welcome.md"
   ]
