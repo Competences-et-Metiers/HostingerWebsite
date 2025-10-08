@@ -64,10 +64,13 @@ Display single or collective BDC sessions available
 Contains few competencies cards that should display messages filled by the consultants.
 
 ## Calendar
-
 To figure a solution for API query to obtain DD agenda of an ADF. Then display on the calendar
 Probably uses the `creneaux.php` query with cleaner property filtering logic
 
-## Central Test Integration (TBD)
+## V2 features
+### CV Generator
+
+
+### Central Test Integration (TBD)
 
 Use the API to submit test using dest token
