@@ -89,7 +89,7 @@ serve(async (req) => {
 
     // Prefer env var; fallback to constant provided in request if env missing
     const envKey = Deno.env.get("DENDREO_API_KEY");
-    const apiKey = envKey && envKey.trim().length > 0 ? envKey : "BaBVostSCz5RTGIwszf8";
+    const apiKey = envKey && envKey.trim().length > 0 ? envKey : "";
 
     // 1) participants lookup by email
     const participantsUrl = new URL("https://pro.dendreo.com/competences_et_metiers/api/participants.php");

@@ -1,41 +1,107 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, Calendar, Award, Target } from 'lucide-react';
-import ProgressChart from '@/components/ProgressChart';
+import { TrendingUp } from 'lucide-react';
 import { Helmet } from 'react-helmet';
+import { supabase, supabaseUrl, supabaseAnonKey } from '@/lib/customSupabaseClient';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 
 const ProgressSection = () => {
-  const progressData = [
-    { month: 'Jan', skills: 18, goals: 3 },
-    { month: 'Fév', skills: 20, goals: 4 },
-    { month: 'Mar', skills: 22, goals: 5 },
-    { month: 'Avr', skills: 24, goals: 6 },
-    { month: 'Mai', skills: 24, goals: 8 },
-  ];
+  const { loading: authLoading } = useAuth();
+  const [adfIds, setAdfIds] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [metrics, setMetrics] = useState([]); // { id, spent_hours, total_hours }
 
-  const achievements = [
-    {
-      title: "Premier objectif atteint",
-      description: "Communication publique maîtrisée",
-      date: "15 Mars 2024",
-      icon: Award,
-      color: "from-yellow-500 to-orange-500"
-    },
-    {
-      title: "Nouvelle compétence",
-      description: "Analyse de données avancée",
-      date: "8 Avril 2024",
-      icon: TrendingUp,
-      color: "from-blue-500 to-purple-500"
-    },
-    {
-      title: "Certification obtenue",
-      description: "Gestion de projet agile",
-      date: "22 Avril 2024",
-      icon: Target,
-      color: "from-green-500 to-emerald-500"
-    }
-  ];
+  // Load ADF IDs from edge function for authenticated user
+  useEffect(() => {
+    let isMounted = true;
+    const loadAdfIds = async () => {
+      if (authLoading) return;
+      try {
+        const controller = new AbortController();
+        const functionsBase = supabaseUrl.replace('supabase.co', 'functions.supabase.co');
+        const url = `${functionsBase}/get-adf`;
+        let authHeader = supabaseAnonKey;
+        try {
+          const { data } = await supabase.auth.getSession();
+          const jwt = data?.session?.access_token;
+          if (jwt) authHeader = `Bearer ${jwt}`;
+        } catch (_) {}
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: { apikey: supabaseAnonKey, Authorization: authHeader },
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(`get-adf ${res.status}`);
+        const data = await res.json();
+        const ids = Array.isArray(data?.adf_ids) ? data.adf_ids.map(String) : [];
+        if (isMounted) setAdfIds(ids);
+      } catch (err) {
+        if (isMounted) setError(err?.message || 'Erreur lors de la récupération des ADF');
+      }
+    };
+    loadAdfIds();
+    return () => { isMounted = false; };
+  }, [authLoading]);
+
+  // Fetch metrics for each ADF using the edge function that computes hours
+  useEffect(() => {
+    let isMounted = true;
+    const fetchAll = async () => {
+      if (!adfIds || adfIds.length === 0) {
+        setMetrics([]);
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const functionsBase = supabaseUrl.replace('supabase.co', 'functions.supabase.co');
+        let authHeader = supabaseAnonKey;
+        try {
+          const { data } = await supabase.auth.getSession();
+          const jwt = data?.session?.access_token;
+          if (jwt) authHeader = `Bearer ${jwt}`;
+        } catch (_) {}
+        const results = await Promise.allSettled(
+          adfIds.map(async (id) => {
+            const url = `${functionsBase}/test?id=${encodeURIComponent(id)}`;
+            const res = await fetch(url, {
+              method: 'GET',
+              headers: { apikey: supabaseAnonKey, Authorization: authHeader },
+            });
+            if (!res.ok) throw new Error(`test ${res.status}`);
+            const payload = await res.json();
+            const spent = Number(payload.spent_hours ?? 0) || 0;
+            const total = Number(payload.total_hours ?? 0) || 0;
+            const title = typeof payload.intitule === 'string' && payload.intitule.trim() ? payload.intitule.trim() : undefined;
+            return { id: String(payload.id || id), title, spent_hours: spent, total_hours: total };
+          })
+        );
+        if (!isMounted) return;
+        const ok = results
+          .filter((r) => r.status === 'fulfilled')
+          .map((r) => r.value);
+        setMetrics(ok);
+      } catch (err) {
+        if (!isMounted) return;
+        setError(err?.message || 'Erreur lors du chargement des métriques');
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    fetchAll();
+    // join in dep to avoid ref churn
+    return () => { isMounted = false; };
+  }, [adfIds.join(',')]);
+
+  const rows = useMemo(() => {
+    return (metrics || []).map((m) => {
+      const spent = Math.max(0, m.spent_hours || 0);
+      const total = Math.max(0, m.total_hours || 0);
+      const pct = total > 0 ? Math.min(100, Math.round((spent / total) * 100)) : 0;
+      return { id: m.id, title: m.title, spent, total, pct };
+    });
+  }, [metrics]);
 
   return (
     <>
@@ -44,56 +110,46 @@ const ProgressSection = () => {
       </Helmet>
     <section className="space-y-8">
       <div>
-        <h2 className="text-3xl font-bold text-white mb-2">Suivi des Progrès</h2>
-        <p className="text-purple-200">Visualisez votre évolution et vos accomplissements</p>
+        <h2 className="text-3xl font-bold text-white mb-2">Progression par ADF</h2>
+        <p className="text-purple-200">Temps passé / durée totale</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6 }}
-          className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20"
-        >
-          <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
-            <TrendingUp className="h-5 w-5 mr-2 text-blue-400" />
-            Évolution mensuelle
-          </h3>
-          <ProgressChart data={progressData} />
-        </motion.div>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20"
+      >
+        <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
+          <TrendingUp className="h-5 w-5 mr-2 text-blue-400" />
+          Vos ADF
+        </h3>
 
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20"
-        >
-          <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
-            <Calendar className="h-5 w-5 mr-2 text-green-400" />
-            Accomplissements récents
-          </h3>
-          <div className="space-y-4">
-            {achievements.map((achievement, index) => (
-              <motion.div
-                key={achievement.title}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.1 * index }}
-                className="flex items-start space-x-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
-              >
-                <div className={`w-10 h-10 bg-gradient-to-r ${achievement.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                  <achievement.icon className="h-5 w-5 text-white" />
+        {loading && <div className="text-white/70 text-sm">Chargement…</div>}
+        {error && <div className="text-red-300 text-sm">{error}</div>}
+        {!loading && !error && adfIds.length === 0 && (
+          <div className="text-white/70 text-sm">Aucune ADF trouvée.</div>
+        )}
+
+        <div className="space-y-4">
+          {rows.map((row) => (
+            <div key={row.id} className="">
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-white/90 text-sm">{row.title || `ADF #${row.id}`}</div>
+                <div className="text-white/70 text-xs">
+                  {row.spent.toFixed(1)}h / {row.total.toFixed(1)}h ({row.pct}%)
                 </div>
-                <div className="flex-1">
-                  <h4 className="text-white font-medium">{achievement.title}</h4>
-                  <p className="text-white/70 text-sm">{achievement.description}</p>
-                  <p className="text-purple-300 text-xs mt-1">{achievement.date}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-      </div>
+              </div>
+              <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+                  style={{ width: `${row.pct}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </motion.div>
     </section>
     </>
   );

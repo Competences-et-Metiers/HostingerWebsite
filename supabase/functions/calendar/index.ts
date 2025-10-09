@@ -19,7 +19,7 @@ const corsHeaders = {
 
 function buildApiUrl(adfId: string, include: string = "lcps"): string {
   const baseUrl = "https://pro.dendreo.com/competences_et_metiers/api/creneaux.php";
-  const apiKey = Deno.env.get("DENDREO_API_KEY") || "BaBVostSCz5RTGIwszf8";
+  const apiKey = Deno.env.get("DENDREO_API_KEY") || "";
   const url = new URL(baseUrl);
   url.searchParams.set("id_action_de_formation", adfId);
   url.searchParams.set("include", include);

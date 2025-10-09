@@ -8,7 +8,7 @@ Voici une roadmap pragmatique, découpée en phases avec livrables, décisions c
 
 Objectifs
 
-Aligner la cible fonctionnelle et technique, fixer les décisions d’intégration Dendreo ⇄ WebApp, et sécuriser la conformité RGPD.
+Aligner la cible fonctionnelle et technique, fixer les décisions d’intégration Dendreo ⇄ WebApp.
 
 **Décisions à prendre**
 

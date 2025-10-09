@@ -157,10 +157,13 @@ serve(async (req) => {
 
     // total hours from total_heures_participants (already in hours)
     let totalHours = 0;
+    let title = ""; // ADF title (intitule)
     if (actionsData && typeof actionsData === "object") {
       const raw = (actionsData as Record<string, unknown>)["total_heures_participants"] as unknown;
       const parsed = typeof raw === "string" ? parseFloat(raw.replace(",", ".")) : typeof raw === "number" ? raw : NaN;
       totalHours = Number.isFinite(parsed) ? parsed : 0;
+      const rawTitle = (actionsData as Record<string, unknown>)["intitule"] as unknown;
+      if (typeof rawTitle === "string" && rawTitle.trim()) title = rawTitle.trim();
     }
 
     // spent hours from creneaux.heures_presence (parse flexible formats)
@@ -207,6 +210,36 @@ serve(async (req) => {
       }
     }
 
+    // If title missing, try to extract from creneaux.formation.intitule
+    if (!title) {
+      const tryExtractFrom = (obj: unknown): string | null => {
+        if (!obj || typeof obj !== "object") return null;
+        const formation = (obj as Record<string, unknown>)["formation"] as unknown;
+        if (formation && typeof formation === "object") {
+          const t = (formation as Record<string, unknown>)["intitule"] as unknown;
+          if (typeof t === "string" && t.trim()) return t.trim();
+        }
+        return null;
+      };
+      if (Array.isArray(creneauxData)) {
+        for (const item of creneauxData) {
+          const t = tryExtractFrom(item);
+          if (t) { title = t; break; }
+        }
+      } else if (creneauxData && typeof creneauxData === "object") {
+        const nested = (creneauxData as Record<string, unknown>)["creneaux"] as unknown;
+        if (Array.isArray(nested)) {
+          for (const c of nested) {
+            const t = tryExtractFrom(c);
+            if (t) { title = t; break; }
+          }
+        } else {
+          const t = tryExtractFrom(creneauxData);
+          if (t) title = t;
+        }
+      }
+    }
+
     // remaining = total - spent (clamped)
     if (!Number.isFinite(spentHours)) spentHours = 0;
     if (!Number.isFinite(totalHours)) totalHours = 0;
@@ -216,7 +249,7 @@ serve(async (req) => {
     if (!Number.isFinite(remainingHours) || remainingHours < 0) remainingHours = 0;
 
     return new Response(
-      JSON.stringify({ id, spent_hours: spentHours, remaining_hours: remainingHours, total_hours: totalHours }),
+      JSON.stringify({ id, intitule: title, spent_hours: spentHours, remaining_hours: remainingHours, total_hours: totalHours }),
       { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
     );
   } catch (err) {
