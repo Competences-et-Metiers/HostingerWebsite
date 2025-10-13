@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
@@ -17,6 +17,7 @@ const CalendarPage = () => {
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null); // currently selected session for popover
   const popoverRef = useRef(null);
+  const [extranetCode, setExtranetCode] = useState(null);
 
   const monthName = currentDate.toLocaleString('fr-FR', { month: 'long' });
   const year = currentDate.getFullYear();
@@ -43,7 +44,11 @@ const CalendarPage = () => {
         const { data, error } = await supabase.functions.invoke('get-adf', { method: 'GET' });
         if (error) throw error;
         const ids = Array.isArray(data?.adf_ids) ? data.adf_ids.map(String) : [];
+        const codeNumeric = data?.extranet_code_numeric ?? null;
+        const codeFormatted = data?.extranet_code ? String(data.extranet_code).replace(/[^0-9]/g, '') : null;
+        const finalCode = codeNumeric || codeFormatted || null;
         if (isMounted) setAdfIds(ids);
+        if (isMounted) setExtranetCode(finalCode);
       } catch (err) {
         if (isMounted) setAdfError(err?.message || 'Erreur lors de la récupération des ADF');
       }
@@ -217,6 +222,23 @@ const CalendarPage = () => {
                 </button>
               </div>
               <div className="mt-4 flex flex-col gap-3">
+                {extranetCode && (
+                  <div className="rounded-md bg-white/5 border border-white/10 p-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-white/70 text-xs">Votre code de connexion</div>
+                      <div className="text-white font-mono tracking-wider text-sm select-all">{extranetCode}</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-white/70 hover:text-white p-2 rounded-md hover:bg-white/10"
+                      onClick={() => extranetCode && navigator.clipboard?.writeText?.(String(extranetCode))}
+                      aria-label="Copier le code"
+                      title="Copier le code"
+                    >
+                      <Copy className="w-5 h-5" />
+                    </button>
+                  </div>
+                )}
                 <a
                   href={selected.session?.url_connexion || '#'}
                   target="_blank"
@@ -225,16 +247,6 @@ const CalendarPage = () => {
                 >
                   Rejoindre la réunion
                 </a>
-                {selected.session?.url_connexion_invite && (
-                  <a
-                    href={selected.session?.url_connexion_invite}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center rounded-md bg-white/10 hover:bg-white/20 text-white px-3 py-2 text-xs"
-                  >
-                    Lien invité
-                  </a>
-                )}
               </div>
             </div>
           </div>

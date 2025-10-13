@@ -110,15 +110,20 @@ serve(async (req) => {
 
     const participantsData = await readJsonSafe(resParticipants);
     let participantId: string | null = null;
+    let extranetCode: string | null = null;
     if (Array.isArray(participantsData) && participantsData.length > 0) {
       const first = participantsData[0] as Record<string, unknown>;
       const raw = first?.["id_participant"] as unknown;
       if (typeof raw === "string" && raw.trim()) participantId = raw.trim();
       if (typeof raw === "number" && Number.isFinite(raw)) participantId = String(raw);
+      const codeRaw = first?.["extranet_code"] as unknown;
+      if (typeof codeRaw === "string" && codeRaw.trim()) extranetCode = codeRaw.trim();
     } else if (participantsData && typeof participantsData === "object") {
       const raw = (participantsData as Record<string, unknown>)["id_participant"] as unknown;
       if (typeof raw === "string" && raw.trim()) participantId = raw.trim();
       if (typeof raw === "number" && Number.isFinite(raw)) participantId = String(raw);
+      const codeRaw = (participantsData as Record<string, unknown>)["extranet_code"] as unknown;
+      if (typeof codeRaw === "string" && codeRaw.trim()) extranetCode = codeRaw.trim();
     }
 
     if (!participantId) {
@@ -180,8 +185,9 @@ serve(async (req) => {
     }
 
     const adf_ids = Array.from(adfIdSet);
+    const extranet_code_numeric = extranetCode ? extranetCode.replace(/\D/g, "") : null;
     return new Response(
-      JSON.stringify({ email, id_participant: participantId, adf_ids }),
+      JSON.stringify({ email, id_participant: participantId, adf_ids, extranet_code: extranetCode, extranet_code_numeric }),
       { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
     );
   } catch (err) {
