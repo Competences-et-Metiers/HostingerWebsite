@@ -1,9 +1,6 @@
 // @ts-nocheck
-// supabase/functions/get-adf/index.ts
-// Resolve ADF IDs for the authenticated user by:
-// 1) Fetching Dendreo participant via email (participants.php?email=...)
-// 2) Fetching laps by participant (laps.php?id_participant=...)
-// Returns a list of unique ADF IDs (id_action_de_formation)
+// supabase/functions/adf-competencies/index.ts
+// Resolve participant for current user and return competencies grouped by ADF with evaluations info
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
@@ -17,10 +14,9 @@ function corsHeaders(origin: string | null) {
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Credentials": "true",
     "Vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
-  };
+  } as Record<string, string>;
 }
 
-// Helper to read JSON body safely depending on content-type
 async function readJsonSafe(res: Response): Promise<unknown> {
   const contentType = res.headers.get("content-type") ?? "";
   const isJson = contentType.includes("application/json");
@@ -33,21 +29,18 @@ async function readJsonSafe(res: Response): Promise<unknown> {
   }
 }
 
+function normalizeId(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return null;
+}
+
 serve(async (req) => {
   const origin = req.headers.get("origin");
   const headers = corsHeaders(origin);
 
-  // CORS preflight
   if (req.method === "OPTIONS") {
-    const requested = (req.headers.get("access-control-request-headers") || "").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean);
-    const defaultAllowed = (headers["Access-Control-Allow-Headers"] || "").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean);
-    const merged = Array.from(new Set([...defaultAllowed, ...requested])).join(", ");
-    const preflightHeaders = {
-      ...headers,
-      "Access-Control-Allow-Headers": merged || headers["Access-Control-Allow-Headers"],
-      "Access-Control-Max-Age": "86400",
-    } as Record<string, string>;
-    return new Response(null, { headers: preflightHeaders, status: 200 });
+    return new Response(null, { headers });
   }
 
   if (req.method !== "GET") {
@@ -58,10 +51,7 @@ serve(async (req) => {
   }
 
   try {
-    const url = new URL(req.url);
-    const emailFromQuery = url.searchParams.get("email");
-
-    // derive user email from Authorization header if available
+    // Resolve user email from Authorization: Bearer <jwt>
     let userEmail: string | null = null;
     const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
     if (authHeader && authHeader.startsWith("Bearer ")) {
@@ -75,10 +65,12 @@ serve(async (req) => {
           }
         }
       } catch (_) {
-        // ignore jwt decode issues, we'll fallback
+        // ignore
       }
     }
 
+    const url = new URL(req.url);
+    const emailFromQuery = url.searchParams.get("email");
     const email = (userEmail || emailFromQuery || "").trim();
     if (!email) {
       return new Response(JSON.stringify({ error: "Missing user email (auth or ?email=)" }), {
@@ -87,9 +79,13 @@ serve(async (req) => {
       });
     }
 
-    // Prefer env var; fallback to constant provided in request if env missing
-    const envKey = Deno.env.get("DENDREO_API_KEY");
-    const apiKey = envKey && envKey.trim().length > 0 ? envKey : "";
+    const apiKey = (Deno.env.get("DENDREO_API_KEY") || "").trim();
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: "Server not configured: missing DENDREO_API_KEY" }), {
+        status: 500,
+        headers: { ...headers, "Content-Type": "application/json" },
+      });
+    }
 
     // 1) participants lookup by email
     const participantsUrl = new URL("https://pro.dendreo.com/competences_et_metiers/api/participants.php");
@@ -110,20 +106,12 @@ serve(async (req) => {
 
     const participantsData = await readJsonSafe(resParticipants);
     let participantId: string | null = null;
-    let extranetCode: string | null = null;
     if (Array.isArray(participantsData) && participantsData.length > 0) {
       const first = participantsData[0] as Record<string, unknown>;
       const raw = first?.["id_participant"] as unknown;
-      if (typeof raw === "string" && raw.trim()) participantId = raw.trim();
-      if (typeof raw === "number" && Number.isFinite(raw)) participantId = String(raw);
-      const codeRaw = first?.["extranet_code"] as unknown;
-      if (typeof codeRaw === "string" && codeRaw.trim()) extranetCode = codeRaw.trim();
+      participantId = normalizeId(raw);
     } else if (participantsData && typeof participantsData === "object") {
-      const raw = (participantsData as Record<string, unknown>)["id_participant"] as unknown;
-      if (typeof raw === "string" && raw.trim()) participantId = raw.trim();
-      if (typeof raw === "number" && Number.isFinite(raw)) participantId = String(raw);
-      const codeRaw = (participantsData as Record<string, unknown>)["extranet_code"] as unknown;
-      if (typeof codeRaw === "string" && codeRaw.trim()) extranetCode = codeRaw.trim();
+      participantId = normalizeId((participantsData as Record<string, unknown>)["id_participant"]);
     }
 
     if (!participantId) {
@@ -150,61 +138,96 @@ serve(async (req) => {
     }
 
     const lapsData = await readJsonSafe(resLaps);
-    const adfIdSet = new Set<string>();
-    const lapIdSet = new Set<string>();
-    const adfToLapIds = new Map<string, Set<string>>();
-    const adfTitles = new Map<string, string>();
 
-    const normalizeId = (value: unknown): string | null => {
-      if (typeof value === "string" && value.trim()) return value.trim();
-      if (typeof value === "number" && Number.isFinite(value)) return String(value);
-      return null;
-    };
+    type EvalOut = { evaluation_name: string | null; validated: boolean; validated_label: string; appreciation: string | null };
+    type Group = { adf_id: string; title: string | null; evaluations: EvalOut[] };
 
-    const extractAdfFromItem = (obj: Record<string, unknown>) => {
+    const adfMap = new Map<string, Group>();
+
+    const processItem = (obj: Record<string, unknown>) => {
       const formation = (obj["formation"] as Record<string, unknown> | undefined) || undefined;
-      const topLevelId = normalizeId(obj["id_action_de_formation"]);
-      const nestedId = formation ? normalizeId(formation["id_action_de_formation"]) : null;
+      const adfId = normalizeId(obj["id_action_de_formation"]) || (formation ? normalizeId(formation["id_action_de_formation"]) : null);
       const categoryId = formation ? normalizeId(formation["categorie_module_id"]) : null;
       const adfTitleRaw = formation ? (formation as Record<string, unknown>)["intitule"] as unknown : undefined;
       const adfTitle = typeof adfTitleRaw === "string" && adfTitleRaw.trim() ? adfTitleRaw.trim() : null;
-      const lapId = normalizeId((obj as Record<string, unknown>)["id_lap"]) || normalizeId((obj as Record<string, unknown>)["id"]) || null;
-      return { adfId: topLevelId || nestedId, categoryId, lapId, adfTitle };
-    };
 
-    const considerItem = (obj: Record<string, unknown>) => {
-      const { adfId, categoryId, lapId, adfTitle } = extractAdfFromItem(obj);
       if (!adfId) return;
-      if (categoryId === "6") {
-        adfIdSet.add(adfId);
-        if (lapId) {
-          lapIdSet.add(lapId);
-          if (!adfToLapIds.has(adfId)) adfToLapIds.set(adfId, new Set<string>());
-          adfToLapIds.get(adfId)!.add(lapId);
-        }
-        if (adfTitle && !adfTitles.has(adfId)) adfTitles.set(adfId, adfTitle);
+      // Keep only category 6 (Competencies/Skills)
+      if (categoryId !== "6") return;
+
+      let group = adfMap.get(adfId);
+      if (!group) {
+        group = { adf_id: adfId, title: adfTitle, evaluations: [] };
+        adfMap.set(adfId, group);
+      } else if (!group.title && adfTitle) {
+        group.title = adfTitle;
       }
     };
 
     if (Array.isArray(lapsData)) {
-      for (const item of lapsData) {
-        if (item && typeof item === "object") considerItem(item as Record<string, unknown>);
-      }
+      for (const item of lapsData) if (item && typeof item === "object") processItem(item as Record<string, unknown>);
     } else if (lapsData && typeof lapsData === "object") {
-      considerItem(lapsData as Record<string, unknown>);
-      const items = (lapsData as Record<string, unknown>)["laps"] as unknown;
-      if (Array.isArray(items)) {
-        for (const it of items) if (it && typeof it === "object") considerItem(it as Record<string, unknown>);
+      processItem(lapsData as Record<string, unknown>);
+      const nested = (lapsData as Record<string, unknown>)["laps"] as unknown;
+      if (Array.isArray(nested)) for (const it of nested) if (it && typeof it === "object") processItem(it as Record<string, unknown>);
+    }
+
+    // 3) For each ADF, fetch evaluations via the proper endpoint
+    const adfIds = Array.from(adfMap.keys());
+    if (adfIds.length > 0) {
+      const fetchOne = async (adfId: string) => {
+        const u = new URL("https://pro.dendreo.com/competences_et_metiers/api/evaluations.php");
+        u.searchParams.set("id_action_de_formation", adfId);
+        u.searchParams.set("id_participant", participantId!);
+        u.searchParams.set("key", apiKey);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15_000);
+        try {
+          const res = await fetch(u.toString(), { method: "GET", signal: controller.signal });
+          const body = await readJsonSafe(res);
+          const out: EvalOut[] = [];
+          const pushEval = (ev: unknown) => {
+            if (!ev || typeof ev !== "object") return;
+            const nameRaw = (ev as Record<string, unknown>)["evaluation_name"] as unknown;
+            const validatedRaw = (ev as Record<string, unknown>)["validated"] as unknown;
+            const appRaw = (ev as Record<string, unknown>)["appreciation"] as unknown;
+            const name = typeof nameRaw === "string" ? nameRaw : null;
+            const isValidated = validatedRaw === 1 || validatedRaw === "1" || validatedRaw === true || validatedRaw === "true";
+            const isPending = validatedRaw === null || validatedRaw === undefined || (typeof validatedRaw === "string" && validatedRaw.trim() === "");
+            const validated_label = isPending ? "En cours" : (isValidated ? "Validé" : "Non validé");
+            const appreciation = typeof appRaw === "string" ? appRaw : null;
+            out.push({ evaluation_name: name, validated: isValidated, validated_label, appreciation });
+          };
+
+          if (Array.isArray(body)) {
+            for (const item of body) {
+              const evs = item && typeof item === "object" ? (item as Record<string, unknown>)["evaluations"] as unknown : undefined;
+              if (Array.isArray(evs)) for (const ev of evs) pushEval(ev);
+            }
+          } else if (body && typeof body === "object") {
+            const evs = (body as Record<string, unknown>)["evaluations"] as unknown;
+            if (Array.isArray(evs)) for (const ev of evs) pushEval(ev);
+          }
+
+          return { adfId, evaluations: out };
+        } catch (_) {
+          return { adfId, evaluations: [] as EvalOut[] };
+        } finally {
+          clearTimeout(timeout);
+        }
+      };
+
+      const results = await Promise.all(adfIds.map(fetchOne));
+      for (const r of results) {
+        const group = adfMap.get(r.adfId);
+        if (group) group.evaluations = r.evaluations;
       }
     }
 
-    const adf_ids = Array.from(adfIdSet);
-    const lap_ids = Array.from(lapIdSet);
-    const adf_to_lap_ids = Object.fromEntries(Array.from(adfToLapIds.entries()).map(([k, v]) => [k, Array.from(v.values())]));
-    const adf_titles = Object.fromEntries(Array.from(adfTitles.entries()));
-    const extranet_code_numeric = extranetCode ? extranetCode.replace(/\D/g, "") : null;
+    const adfs = Array.from(adfMap.values()).map(g => ({ ...g, evaluations: g.evaluations }));
+
     return new Response(
-      JSON.stringify({ email, id_participant: participantId, adf_ids, lap_ids, adf_to_lap_ids, adf_titles, extranet_code: extranetCode, extranet_code_numeric }),
+      JSON.stringify({ email, id_participant: participantId, adfs }),
       { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
     );
   } catch (err) {
@@ -213,8 +236,10 @@ serve(async (req) => {
       : (err as Error)?.message ?? "Unexpected error";
     return new Response(JSON.stringify({ error: msg }), {
       status: 502,
-      headers: { ...corsHeaders(origin), "Content-Type": "application/json" },
+      headers: { ...headers, "Content-Type": "application/json" },
     });
   }
 });
+
+
 

@@ -1,45 +1,35 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Star } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
-import SkillCard from '@/components/SkillCard';
+import AdfCompetencyCard from '@/components/AdfCompetencyCard';
+import { fetchAdfCompetencies } from '@/lib/dendreo';
 
 const SkillsSection = () => {
-  const [skills] = useState([
-    {
-      id: 1,
-      name: "Communication",
-      category: "Soft Skills",
-      level: 4,
-      progress: 80,
-      description: "Capacité à communiquer efficacement avec les équipes"
-    },
-    {
-      id: 2,
-      name: "Gestion de projet",
-      category: "Management",
-      level: 3,
-      progress: 65,
-      description: "Planification et suivi de projets complexes"
-    },
-    {
-      id: 3,
-      name: "Analyse de données",
-      category: "Technique",
-      level: 3,
-      progress: 70,
-      description: "Traitement et interprétation de données"
-    },
-    {
-      id: 4,
-      name: "Leadership",
-      category: "Management",
-      level: 2,
-      progress: 45,
-      description: "Capacité à diriger et motiver une équipe"
-    }
-  ]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [adfs, setAdfs] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchAdfCompetencies();
+        if (!mounted) return;
+        setAdfs(Array.isArray(data?.adfs) ? data.adfs : []);
+      } catch (err) {
+        if (!mounted) return;
+        setError(err?.message || 'Impossible de charger les compétences');
+      } finally {
+        if (!mounted) return;
+        setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   const handleAddSkill = () => {
     toast({
@@ -64,18 +54,27 @@ const SkillsSection = () => {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {skills.map((skill, index) => (
-          <motion.div
-            key={skill.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 * index }}
-          >
-            <SkillCard skill={skill} />
-          </motion.div>
-        ))}
-      </div>
+      {loading ? (
+        <p className="text-white/80">Chargement des compétences…</p>
+      ) : error ? (
+        <p className="text-red-300">{error}</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {adfs.map((adf, index) => (
+            <motion.div
+              key={adf.adf_id || index}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.05 * index }}
+            >
+              <AdfCompetencyCard adf={adf} />
+            </motion.div>
+          ))}
+          {adfs.length === 0 && (
+            <p className="text-white/80">Aucune compétence trouvée pour vos ADF.</p>
+          )}
+        </div>
+      )}
     </section>
   );
 };

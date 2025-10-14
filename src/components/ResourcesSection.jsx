@@ -1,103 +1,149 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, Video, FileText, ExternalLink, Search } from 'lucide-react';
+import { ExternalLink, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
-import ResourceCard from '@/components/ResourceCard';
+import { supabase, supabaseUrl } from '@/lib/customSupabaseClient';
+
+const functionsBase = `${supabaseUrl}/functions/v1`;
 
 const ResourcesSection = () => {
-  const [resources] = useState([
-    {
-      id: 1,
-      title: "Guide complet du leadership",
-      description: "Développez vos compétences de leadership avec ce guide pratique",
-      type: "guide",
-      category: "Management",
-      duration: "2h de lecture",
-      level: "Intermédiaire",
-      icon: FileText
-    },
-    {
-      id: 2,
-      title: "Formation en ligne : Communication efficace",
-      description: "Cours vidéo interactif pour améliorer vos compétences de communication",
-      type: "video",
-      category: "Soft Skills",
-      duration: "4h de vidéo",
-      level: "Débutant",
-      icon: Video
-    },
-    {
-      id: 3,
-      title: "Méthodologies de gestion de projet",
-      description: "Apprenez les meilleures pratiques en gestion de projet",
-      type: "cours",
-      category: "Gestion",
-      duration: "6h de formation",
-      level: "Avancé",
-      icon: BookOpen
-    },
-    {
-      id: 4,
-      title: "Outils d'analyse de données",
-      description: "Maîtrisez les outils modernes d'analyse et de visualisation",
-      type: "guide",
-      category: "Technique",
-      duration: "3h de lecture",
-      level: "Intermédiaire",
-      icon: FileText
+  const [loading, setLoading] = useState(false);
+  const [groups, setGroups] = useState([]); // [{ adfId, title, files: [] }]
+
+  const fetchResources = useMemo(() => async () => {
+    setLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const authHeader = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+
+      const resAdf = await fetch(`${functionsBase}/get-adf`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+      });
+      if (!resAdf.ok) {
+        const errBody = await resAdf.json().catch(() => ({}));
+        throw new Error(errBody?.error || `get-adf failed (${resAdf.status})`);
+      }
+      const adfPayload = await resAdf.json();
+      const adfIds = Array.isArray(adfPayload?.adf_ids) ? adfPayload.adf_ids : [];
+      const lapIds = Array.isArray(adfPayload?.lap_ids) ? adfPayload.lap_ids : [];
+      const adfToLapIds = adfPayload?.adf_to_lap_ids || {};
+      const adfTitles = adfPayload?.adf_titles || {};
+
+      if (lapIds.length === 0 || adfIds.length === 0) {
+        setGroups([]);
+        toast({ title: 'Aucune ressource', description: "Aucun fichier partagé n'a été trouvé pour vos formations." });
+        return;
+      }
+
+      const resFiles = await fetch(`${functionsBase}/lap-files?lap_ids=${encodeURIComponent(lapIds.join(','))}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+      });
+      if (!resFiles.ok) {
+        const errBody = await resFiles.json().catch(() => ({}));
+        throw new Error(errBody?.error || `lap-files failed (${resFiles.status})`);
+      }
+      const filesPayload = await resFiles.json();
+      const perLap = filesPayload?.per_lap || {};
+
+      const buildFilesFromLap = (lapBody) => {
+        if (!lapBody) return [];
+        if (Array.isArray(lapBody)) return lapBody;
+        if (typeof lapBody === 'object') {
+          const inner = lapBody?.fichiers;
+          return Array.isArray(inner) ? inner : [];
+        }
+        return [];
+      };
+
+      const builtGroups = adfIds.map((adfId) => {
+        const lapList = Array.isArray(adfToLapIds[adfId]) ? adfToLapIds[adfId] : [];
+        const files = [];
+        for (const lapId of lapList) {
+          const lapBody = perLap?.[lapId];
+          const lapFiles = buildFilesFromLap(lapBody);
+          for (const f of lapFiles) files.push(f);
+        }
+        return { adfId, title: adfTitles?.[adfId] || `Formation ${adfId}`, files };
+      }).filter(g => g.files.length > 0);
+
+      setGroups(builtGroups);
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Erreur de chargement', description: e?.message || 'Une erreur est survenue.' });
+    } finally {
+      setLoading(false);
     }
-  ]);
+  }, []);
 
-  const handleSearch = () => {
-    toast({
-      title: "Recherche de ressources",
-      description: "🚧 Cette fonctionnalité n'est pas encore implémentée—mais ne vous inquiétez pas ! Vous pouvez la demander dans votre prochaine requête ! 🚀"
-    });
-  };
+  useEffect(() => {
+    fetchResources();
+  }, [fetchResources]);
 
-  const handleViewAll = () => {
-    toast({
-      title: "Voir toutes les ressources",
-      description: "🚧 Cette fonctionnalité n'est pas encore implémentée—mais ne vous inquiétez pas ! Vous pouvez la demander dans votre prochaine requête ! 🚀"
-    });
+  const handleOpen = (url) => {
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (
     <section className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-white mb-2">Ressources de Formation</h2>
-          <p className="text-purple-200">Accédez à des ressources pour développer vos compétences</p>
+          <h2 className="text-3xl font-bold text-white mb-2">Ressources de votre Bilan</h2>
+          <p className="text-purple-200">Fichiers partagés, regroupés par action de formation</p>
         </div>
         <div className="flex items-center space-x-3">
           <Button
-            onClick={handleSearch}
+            onClick={fetchResources}
             variant="outline"
             className="border-white/20 text-white hover:bg-white/10"
+            disabled={loading}
           >
-            <Search className="h-4 w-4 mr-2" />
-            Rechercher
-          </Button>
-          <Button
-            onClick={handleViewAll}
-            className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600"
-          >
-            <ExternalLink className="h-4 w-4 mr-2" />
-            Voir tout
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Actualiser
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {resources.map((resource, index) => (
+      {groups.length === 0 && !loading && (
+        <div className="text-white/70">Aucun fichier partagé disponible pour le moment.</div>
+      )}
+
+      <div className="space-y-8">
+        {groups.map((group, index) => (
           <motion.div
-            key={resource.id}
+            key={group.adfId}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 * index }}
+            transition={{ duration: 0.5, delay: 0.06 * index }}
+            className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20"
           >
-            <ResourceCard resource={resource} />
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-xl font-semibold text-white">{group.title}</h3>
+                <div className="text-white/60 text-sm">ADF {group.adfId}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {group.files.map((file, i) => (
+                <div key={`${group.adfId}-${file?.uuid || file?.id || i}`} className="flex items-center justify-between bg-white/5 rounded-lg px-4 py-3 border border-white/10">
+                  <div className="min-w-0 mr-3">
+                    <div className="text-white truncate">{file?.name || 'Fichier'}</div>
+                    <div className="text-white/60 text-xs truncate">{file?.mime_type || ''}</div>
+                  </div>
+                  <Button
+                    onClick={() => handleOpen(file?.public_url)}
+                    className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600"
+                    disabled={!file?.public_url}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Ouvrir
+                  </Button>
+                </div>
+              ))}
+            </div>
           </motion.div>
         ))}
       </div>
