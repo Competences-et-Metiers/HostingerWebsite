@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, Star, Target, TrendingUp, BookOpen, Settings, LogOut, Calendar, FileText, UserSquare } from 'lucide-react';
+import { LayoutDashboard, Star, Target, TrendingUp, BookOpen, Settings, LogOut, Calendar, FileText, UserSquare, X } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -17,7 +17,7 @@ const menuItems = [
   { icon: UserSquare, label: "Mon Consultant", path: "/consultant" },
 ];
 
-const NavItem = ({ icon: Icon, label, path, delay }) => {
+const NavItem = ({ icon: Icon, label, path, delay, onClose }) => {
   return (
     <motion.div
       initial={{ opacity: 0, x: -20 }}
@@ -27,6 +27,11 @@ const NavItem = ({ icon: Icon, label, path, delay }) => {
       <NavLink
         to={path}
         end={path === "/"}
+        onClick={() => {
+          if (typeof onClose === 'function' && typeof window !== 'undefined' && window.innerWidth < 1024) {
+            onClose();
+          }
+        }}
         className={({ isActive }) =>
           `w-full justify-start text-white/80 hover:text-white hover:bg-white/10 py-4 px-4 flex items-center rounded-lg transition-colors ${
             isActive ? 'bg-white/10 text-white' : ''
@@ -40,7 +45,7 @@ const NavItem = ({ icon: Icon, label, path, delay }) => {
   );
 };
 
-const SideMenu = () => {
+const SideMenu = ({ onClose }) => {
   const { signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -51,6 +56,16 @@ const SideMenu = () => {
       title: "Déconnexion",
       description: "Vous avez été déconnecté avec succès.",
     });
+    if (typeof onClose === 'function' && typeof window !== 'undefined' && window.innerWidth < 1024) {
+      onClose();
+    }
+  };
+
+  const handleSettings = () => {
+    navigate('/settings');
+    if (typeof onClose === 'function' && typeof window !== 'undefined' && window.innerWidth < 1024) {
+      onClose();
+    }
   };
 
   return (
@@ -58,8 +73,19 @@ const SideMenu = () => {
       initial={{ x: '-100%' }}
       animate={{ x: 0 }}
       transition={{ duration: 0.7, ease: [0.6, 0.01, -0.05, 0.9] }}
-      className="w-72 bg-black/20 backdrop-blur-xl border-r border-white/10 flex flex-col justify-between p-4"
+      className="w-72 bg-black/20 backdrop-blur-xl border-r border-white/10 flex flex-col justify-between p-4 relative"
     >
+      {onClose && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          className="absolute top-2 right-2 text-white/80 hover:text-white hover:bg-white/10"
+          aria-label="Fermer le menu"
+        >
+          <X className="h-5 w-5" />
+        </Button>
+      )}
       <div>
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -78,7 +104,7 @@ const SideMenu = () => {
 
         <nav className="space-y-2">
           {menuItems.map((item, index) => (
-            <NavItem key={item.label} icon={item.icon} label={item.label} path={item.path} delay={0.4 + index * 0.08} />
+            <NavItem key={item.label} icon={item.icon} label={item.label} path={item.path} delay={0.4 + index * 0.08} onClose={onClose} />
           ))}
         </nav>
       </div>
@@ -91,7 +117,7 @@ const SideMenu = () => {
       >
         <Button
           variant="ghost"
-          onClick={() => navigate('/settings')}
+          onClick={handleSettings}
           className="w-full justify-start text-white/80 hover:text-white hover:bg-white/10 py-4"
         >
           <Settings className="h-5 w-5 mr-4" />

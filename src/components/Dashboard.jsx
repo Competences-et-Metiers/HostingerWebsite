@@ -10,6 +10,7 @@ const Dashboard = () => {
   const [remainingHours, setRemainingHours] = useState(null);
   const [totalHours, setTotalHours] = useState(null);
   const [adfIds, setAdfIds] = useState([]);
+  const [globalProgress, setGlobalProgress] = useState(null);
 
   const formatHours = (value) => {
     if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -85,6 +86,51 @@ const Dashboard = () => {
     return () => controller.abort();
   }, []);
 
+  // Compute average progression across all ADFs (progression globale)
+  useEffect(() => {
+    let isMounted = true;
+    const computeGlobalProgress = async () => {
+      if (!adfIds || adfIds.length === 0) {
+        if (isMounted) setGlobalProgress(null);
+        return;
+      }
+      try {
+        const functionsBase = supabaseUrl.replace('supabase.co', 'functions.supabase.co');
+        let authHeader = supabaseAnonKey;
+        try {
+          const { data } = await supabase.auth.getSession();
+          const jwt = data?.session?.access_token;
+          if (jwt) authHeader = `Bearer ${jwt}`;
+        } catch (_) {}
+        const results = await Promise.allSettled(
+          adfIds.map(async (id) => {
+            const url = `${functionsBase}/test?id=${encodeURIComponent(id)}`;
+            const res = await fetch(url, {
+              method: 'GET',
+              headers: { apikey: supabaseAnonKey, Authorization: authHeader }
+            });
+            if (!res.ok) throw new Error(`test ${res.status}`);
+            const payload = await res.json();
+            const spent = Number(payload.spent_hours ?? 0) || 0;
+            const total = Number(payload.total_hours ?? 0) || 0;
+            const pct = total > 0 ? Math.min(100, Math.round((spent / total) * 100)) : 0;
+            return pct;
+          })
+        );
+        if (!isMounted) return;
+        const pcts = results
+          .filter((r) => r.status === 'fulfilled')
+          .map((r) => r.value);
+        const avg = pcts.length > 0 ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : 0;
+        setGlobalProgress(avg);
+      } catch (_) {
+        if (isMounted) setGlobalProgress(null);
+      }
+    };
+    computeGlobalProgress();
+    return () => { isMounted = false; };
+  }, [adfIds.join(',')]);
+
   const stats = [
     {
       title: "Heures effectuées",
@@ -146,17 +192,14 @@ const Dashboard = () => {
           </motion.div>
         ))}
       </div>
-      <div className="mt-8 rounded-lg bg-white/5 p-4">
-        <h3 className="text-white font-semibold mb-2">Your ADFs:</h3>
-        {adfIds.length > 0 ? (
-          <ul className="list-disc list-inside text-purple-200">
-            {adfIds.map((id) => (
-              <li key={id}>{id}</li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-purple-200">None found.</p>
-        )}
+      <div className="mt-8 bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+        <h3 className="text-white font-semibold mb-4">Votre progression globale : {globalProgress !== null ? `${globalProgress}%` : '—'}</h3>
+        <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+            style={{ width: `${globalProgress || 0}%` }}
+          />
+        </div>
       </div>
       </section>
     </>

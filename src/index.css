@@ -36,7 +36,9 @@ body {
   background: linear-gradient(135deg, #1e1b4b 0%, #581c87 50%, #0f172a 100%);
   min-height: 100vh;
   color: white;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 html {

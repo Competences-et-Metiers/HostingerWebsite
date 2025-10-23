@@ -1,11 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { User, Bell } from 'lucide-react';
+import { User, Bell, PanelLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { useNavigate } from 'react-router-dom';
 
-const Header = ({ onToggleNotifications }) => {
+const Header = ({ onToggleNotifications, onToggleMenu }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const userName = user?.user_metadata?.first_name || user?.email || 'Utilisateur';
@@ -29,6 +29,15 @@ const Header = ({ onToggleNotifications }) => {
           </div>
 
           <div className="flex items-center space-x-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleMenu}
+              className="text-white hover:bg-white/10"
+              aria-label="Ouvrir/fermer le menu"
+            >
+              <PanelLeft className="h-5 w-5" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
