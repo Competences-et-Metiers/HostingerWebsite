@@ -154,6 +154,7 @@ serve(async (req) => {
     const lapIdSet = new Set<string>();
     const adfToLapIds = new Map<string, Set<string>>();
     const adfTitles = new Map<string, string>();
+    const adfResponsables = new Map<string, string>();
 
     const normalizeId = (value: unknown): string | null => {
       if (typeof value === "string" && value.trim()) return value.trim();
@@ -167,6 +168,7 @@ serve(async (req) => {
       const nestedId = formation ? normalizeId(formation["id_action_de_formation"]) : null;
       const categoryId = formation ? normalizeId(formation["categorie_module_id"]) : null;
       const adfTitleRaw = formation ? (formation as Record<string, unknown>)["intitule"] as unknown : undefined;
+      const idResponsableRaw = formation ? (formation as Record<string, unknown>)["id_responsable"] as unknown : undefined;
       const adfTitle = typeof adfTitleRaw === "string" && adfTitleRaw.trim() ? adfTitleRaw.trim() : null;
       const lapId = normalizeId((obj as Record<string, unknown>)["id_lap"]) || normalizeId((obj as Record<string, unknown>)["id"]) || null;
       return { adfId: topLevelId || nestedId, categoryId, lapId, adfTitle };
@@ -183,6 +185,8 @@ serve(async (req) => {
           adfToLapIds.get(adfId)!.add(lapId);
         }
         if (adfTitle && !adfTitles.has(adfId)) adfTitles.set(adfId, adfTitle);
+        const idRes = typeof idResponsableRaw === "string" && idResponsableRaw.trim() ? idResponsableRaw.trim() : (typeof idResponsableRaw === "number" && Number.isFinite(idResponsableRaw) ? String(idResponsableRaw) : null);
+        if (idRes && !adfResponsables.has(adfId)) adfResponsables.set(adfId, idRes);
       }
     };
 
@@ -202,9 +206,36 @@ serve(async (req) => {
     const lap_ids = Array.from(lapIdSet);
     const adf_to_lap_ids = Object.fromEntries(Array.from(adfToLapIds.entries()).map(([k, v]) => [k, Array.from(v.values())]));
     const adf_titles = Object.fromEntries(Array.from(adfTitles.entries()));
+    // Ensure id_responsable is filled by querying actions_de_formation when missing
+    if (adf_ids.length > 0) {
+      const fetchOne = async (adfId: string) => {
+        // Skip if we already have a responsable for this ADF
+        if (adfResponsables.has(adfId)) return null;
+        const u = new URL("https://pro.dendreo.com/competences_et_metiers/api/actions_de_formation.php");
+        u.searchParams.set("id", adfId);
+        u.searchParams.set("key", apiKey);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15_000);
+        try {
+          const res = await fetch(u.toString(), { method: "GET", signal: controller.signal });
+          const body = await readJsonSafe(res);
+          if (!res.ok) return null;
+          const raw = body && typeof body === "object" ? (body as Record<string, unknown>)["id_responsable"] as unknown : null;
+          const idRes = typeof raw === "string" && raw.trim() ? raw.trim() : (typeof raw === "number" && Number.isFinite(raw) ? String(raw) : null);
+          if (idRes) adfResponsables.set(adfId, idRes);
+          return null;
+        } catch (_) {
+          return null;
+        } finally {
+          clearTimeout(timeout);
+        }
+      };
+      await Promise.all(adf_ids.map(fetchOne));
+    }
+    const adf_responsables = Object.fromEntries(Array.from(adfResponsables.entries()));
     const extranet_code_numeric = extranetCode ? extranetCode.replace(/\D/g, "") : null;
     return new Response(
-      JSON.stringify({ email, id_participant: participantId, adf_ids, lap_ids, adf_to_lap_ids, adf_titles, extranet_code: extranetCode, extranet_code_numeric }),
+      JSON.stringify({ email, id_participant: participantId, adf_ids, lap_ids, adf_to_lap_ids, adf_titles, adf_responsables, extranet_code: extranetCode, extranet_code_numeric }),
       { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
     );
   } catch (err) {
