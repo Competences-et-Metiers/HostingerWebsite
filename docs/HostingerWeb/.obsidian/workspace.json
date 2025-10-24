@@ -142,13 +142,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "POC.md",
+                "file": "TODO.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of POC"
+              "title": "Outline of TODO"
             }
           }
         ],
@@ -209,10 +209,10 @@
       }
     ]
   },
-  "active": "01e4672b629af2be",
+  "active": "abdd2b04653f7498",
   "lastOpenFiles": [
-    "TODO.md",
     "POC.md",
+    "TODO.md",
     "Project timeline.md",
     "Relation diagrams.md",
     "Roadmap.md",
