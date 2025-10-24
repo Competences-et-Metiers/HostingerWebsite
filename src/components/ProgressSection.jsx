@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { TrendingUp } from 'lucide-react';
 import { Helmet } from 'react-helmet';
@@ -114,10 +115,13 @@ const ProgressSection = () => {
         <title>Progression</title>
       </Helmet>
     <section className="space-y-8">
-      <div>
-        <h2 className="text-3xl font-bold text-white mb-2">Progression par ADF</h2>
-        <p className="text-purple-200">Temps passé / durée totale</p>
-      </div>
+      {(() => {
+        const { setHeader } = useOutletContext() || {};
+        useEffect(() => {
+          setHeader && setHeader('Progression de votre Bilan', 'Temps passé / durée totale');
+        }, [setHeader]);
+        return null;
+      })()}
 
       <motion.div
         initial={{ opacity: 0, y: 10 }}

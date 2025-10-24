@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Copy } from 'lucide-react';
@@ -176,7 +177,13 @@ const CalendarPage = () => {
         transition={{ duration: 0.5 }}
         className="space-y-8"
       >
-        <h2 className="text-3xl font-bold text-white mb-2">Calendrier</h2>
+        {(() => {
+          const { setHeader } = useOutletContext() || {};
+          useEffect(() => {
+            setHeader && setHeader('Calendrier', '');
+          }, [setHeader]);
+          return null;
+        })()}
         
         <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
           <div className="flex items-center justify-between mb-4">

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { TrendingUp, Target, BookOpen, Award } from 'lucide-react';
 import StatsCard from '@/components/StatsCard';
@@ -180,28 +181,17 @@ const Dashboard = () => {
 
   return (
     <>
+      {(() => {
+        const { setHeader } = useOutletContext() || {};
+        useEffect(() => {
+          setHeader && setHeader('Tableau de Bord', 'Votre progression globale');
+        }, [setHeader]);
+        return null;
+      })()}
       <Helmet>
         <title>Tableau de Bord</title>
       </Helmet>
       <section className="space-y-8">
-      <div className="text-center">
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-4xl font-bold text-white mb-4"
-        >
-          Tableau de Bord
-        </motion.h2>
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="text-purple-200 text-lg max-w-2xl mx-auto"
-        >
-          Suivez votre progression et développez vos compétences professionnelles
-        </motion.p>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, index) => (

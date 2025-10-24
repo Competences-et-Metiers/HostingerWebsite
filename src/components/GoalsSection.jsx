@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, Target, Calendar, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -57,11 +58,16 @@ const GoalsSection = () => {
 
   return (
     <section className="space-y-8">
+      {(() => {
+        const { setHeader } = useOutletContext() || {};
+        useEffect(() => {
+          setHeader && setHeader('Mes Objectifs', 'Définissez et suivez vos objectifs de développement');
+        }, [setHeader]);
+        return null;
+      })()}
+
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-white mb-2">Mes Objectifs</h2>
-          <p className="text-purple-200">Définissez et suivez vos objectifs de développement</p>
-        </div>
+        <div />
         <Button
           onClick={handleAddGoal}
           className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"

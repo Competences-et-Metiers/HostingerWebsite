@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
+import { useOutletContext } from 'react-router-dom';
 
 const CVGeneratorPage = () => {
   const { toast } = useToast();
@@ -26,10 +27,13 @@ const CVGeneratorPage = () => {
         transition={{ duration: 0.5 }}
         className="space-y-8 text-center"
       >
-        <h2 className="text-3xl font-bold text-white mb-2">Générateur de CV</h2>
-        <p className="text-purple-200 max-w-2xl mx-auto">
-          Bientôt disponible : un outil puissant pour transformer vos compétences et expériences en un CV percutant et professionnel.
-        </p>
+        {(() => {
+          const { setHeader } = useOutletContext() || {};
+          useEffect(() => {
+            setHeader && setHeader('Générateur de CV', "Bientôt disponible : un outil puissant pour transformer vos compétences et expériences en un CV percutant et professionnel.");
+          }, [setHeader]);
+          return null;
+        })()}
         
         <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-12 mt-8 max-w-3xl mx-auto">
           <h3 className="text-2xl font-semibold text-white mb-4">Préparez-vous à impressionner !</h3>

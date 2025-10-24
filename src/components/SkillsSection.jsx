@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import AdfCompetencyCard from '@/components/AdfCompetencyCard';
@@ -34,12 +35,13 @@ const SkillsSection = () => {
 
   return (
     <section className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-white mb-2">Mes Compétences</h2>
-          <p className="text-purple-200">Évaluez et développez vos compétences professionnelles</p>
-        </div>
-      </div>
+      {(() => {
+        const { setHeader } = useOutletContext() || {};
+        useEffect(() => {
+          setHeader && setHeader('Mes Compétences', 'Évaluez et développez vos compétences professionnelles');
+        }, [setHeader]);
+        return null;
+      })()}
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

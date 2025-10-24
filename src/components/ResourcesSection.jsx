@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -89,13 +90,13 @@ const ResourcesSection = () => {
 
   return (
     <section className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-white mb-2">Ressources de votre Bilan</h2>
-          <p className="text-purple-200">Fichiers partagés, regroupés par action de formation</p>
-        </div>
-        <div className="flex items-center space-x-3" />
-      </div>
+      {(() => {
+        const { setHeader } = useOutletContext() || {};
+        useEffect(() => {
+          setHeader && setHeader('Ressources de votre Bilan', "Fichiers partagés, regroupés par action de formation");
+        }, [setHeader]);
+        return null;
+      })()}
 
       {groups.length === 0 && !loading && (
         <div className="text-white/70">Aucun fichier partagé disponible pour le moment.</div>
