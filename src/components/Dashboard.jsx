@@ -11,6 +11,7 @@ const Dashboard = () => {
   const [totalHours, setTotalHours] = useState(null);
   const [adfIds, setAdfIds] = useState([]);
   const [globalProgress, setGlobalProgress] = useState(null);
+  const [displayedProgress, setDisplayedProgress] = useState(0);
 
   const formatHours = (value) => {
     if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -131,6 +132,28 @@ const Dashboard = () => {
     return () => { isMounted = false; };
   }, [adfIds.join(',')]);
 
+  // Animate the visible percentage value when globalProgress updates
+  useEffect(() => {
+    if (globalProgress === null || typeof globalProgress !== 'number') {
+      setDisplayedProgress(0);
+      return;
+    }
+    const to = Math.max(0, Math.min(100, globalProgress));
+    const from = Math.max(0, Math.min(100, Number.isFinite(displayedProgress) ? displayedProgress : 0));
+    const durationMs = 800;
+    const startTime = performance.now();
+    let raf = 0;
+    const tick = (now) => {
+      const t = Math.min(1, (now - startTime) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+      const val = Math.round(from + (to - from) * eased);
+      setDisplayedProgress(val);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [globalProgress]);
+
   const stats = [
     {
       title: "Heures effectuées",
@@ -193,11 +216,13 @@ const Dashboard = () => {
         ))}
       </div>
       <div className="mt-8 bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-        <h3 className="text-white font-semibold mb-4">Votre progression globale : {globalProgress !== null ? `${globalProgress}%` : '—'}</h3>
+        <h3 className="text-white font-semibold mb-4">Votre progression globale : {globalProgress !== null ? `${displayedProgress}%` : '—'}</h3>
         <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
-          <div
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${globalProgress ? displayedProgress : 0}%` }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
             className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
-            style={{ width: `${globalProgress || 0}%` }}
           />
         </div>
       </div>

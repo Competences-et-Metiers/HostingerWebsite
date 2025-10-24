@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
 import { Trash2, Edit, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/lib/customSupabaseClient';
 
 const UserManagementPage = () => {
@@ -122,7 +123,14 @@ const UserManagementPage = () => {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="4" className="p-4 text-center text-white">Chargement...</td></tr>
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <tr key={i} className="border-b border-white/10 last:border-b-0">
+                      <td className="p-4"><Skeleton className="h-4 w-40" /></td>
+                      <td className="p-4"><Skeleton className="h-4 w-56" /></td>
+                      <td className="p-4"><Skeleton className="h-4 w-20" /></td>
+                      <td className="p-4 text-right"><Skeleton className="h-8 w-24 ml-auto rounded-md" /></td>
+                    </tr>
+                  ))
                 ) : (
                   users.map((user, index) => (
                     <motion.tr 

@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 
@@ -10,6 +11,7 @@ const CalendarPage = () => {
   const { loading: authLoading } = useAuth();
   const [adfIds, setAdfIds] = useState([]);
   const [adfError, setAdfError] = useState(null);
+  const [adfLoading, setAdfLoading] = useState(true);
 
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [sessions, setSessions] = useState([]);
@@ -41,6 +43,7 @@ const CalendarPage = () => {
       if (authLoading) return; // wait for auth readiness
       setAdfError(null);
       try {
+        setAdfLoading(true);
         const { data, error } = await supabase.functions.invoke('get-adf', { method: 'GET' });
         if (error) throw error;
         const ids = Array.isArray(data?.adf_ids) ? data.adf_ids.map(String) : [];
@@ -51,6 +54,8 @@ const CalendarPage = () => {
         if (isMounted) setExtranetCode(finalCode);
       } catch (err) {
         if (isMounted) setAdfError(err?.message || 'Erreur lors de la récupération des ADF');
+      } finally {
+        if (isMounted) setAdfLoading(false);
       }
     };
     loadAdfIds();
@@ -183,15 +188,21 @@ const CalendarPage = () => {
               <ChevronRight />
             </Button>
           </div>
-          {loading && <div className="text-white/70 mb-2 text-sm">Chargement des sessions…</div>}
+          {(adfLoading || loading) && (
+            <Skeleton className="h-[60vh] w-full rounded-md" />
+          )}
           {error && <div className="text-red-300 mb-2 text-sm">{error}</div>}
-          <div className="grid grid-cols-7 text-center text-white/70 mb-2">
-            {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map(day => <div key={day}>{day}</div>)}
-          </div>
-          <div className="grid grid-cols-7 h-[60vh]">
-            {calendarDays}
-          </div>
-          {(adfError || (!loading && adfIds.length === 0)) && (
+          {!(adfLoading || loading) && (
+            <>
+              <div className="grid grid-cols-7 text-center text-white/70 mb-2">
+                {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map(day => <div key={day}>{day}</div>)}
+              </div>
+              <div className="grid grid-cols-7 h-[60vh]">
+                {calendarDays}
+              </div>
+            </>
+          )}
+          {(!adfLoading && (adfError || (!loading && adfIds.length === 0))) && (
             <div className="text-white/60 text-sm mt-2">
               {adfError ? adfError : "Aucune ADF trouvée pour l'utilisateur."}
             </div>

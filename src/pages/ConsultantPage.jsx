@@ -5,6 +5,7 @@ import { Mail, Phone, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { fetchAdfIds, fetchConsultantsByAdfIds, formatFrenchPhoneNumber, fetchStaffById } from '@/lib/dendreo';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const ConsultantPage = () => {
   const { toast } = useToast();
@@ -108,16 +109,31 @@ const ConsultantPage = () => {
         <h2 className="text-3xl font-bold text-white mb-2">Mon Consultant</h2>
 
         {loading && (
-          <div className="text-purple-200">Chargement des informations...</div>
+          <div className="grid gap-6">
+            {Array.from({ length: 1 }).map((_, idx) => (
+              <div key={idx} className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-8 flex flex-col md:flex-row items-center gap-8">
+                <Skeleton className="w-24 h-24 md:w-32 md:h-32 rounded-full" />
+                <div className="flex-1 w-full">
+                  <Skeleton className="h-6 w-1/3 mb-2" />
+                  <Skeleton className="h-4 w-1/4 mb-4" />
+                  <div className="space-y-3">
+                    <Skeleton className="h-4 w-1/2" />
+                    <Skeleton className="h-4 w-1/3" />
+                  </div>
+                  <div className="mt-6">
+                    <Skeleton className="h-10 w-40 rounded-md" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
         {!loading && error && (
           <div className="text-red-300">{error}</div>
         )}
 
-        {!loading && !error && consultants.length === 0 && (
-          <div className="text-purple-200">Aucun consultant associé à vos sessions.</div>
-        )}
+        {!loading && !error && consultants.length === 0 && null}
 
         {!loading && !error && consultants.length > 0 && (
           <div className="grid gap-6">

@@ -4,11 +4,12 @@ import { ExternalLink, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { supabase, supabaseUrl } from '@/lib/customSupabaseClient';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const functionsBase = `${supabaseUrl}/functions/v1`;
 
 const ResourcesSection = () => {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState([]); // [{ adfId, title, files: [] }]
 
   const fetchResources = useMemo(() => async () => {
@@ -108,6 +109,30 @@ const ResourcesSection = () => {
 
       {groups.length === 0 && !loading && (
         <div className="text-white/70">Aucun fichier partagé disponible pour le moment.</div>
+      )}
+
+      {loading && (
+        <div className="space-y-8">
+          {Array.from({ length: 2 }).map((_, gi) => (
+            <div key={gi} className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+              <div className="mb-4">
+                <Skeleton className="h-6 w-1/3 mb-1" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between bg-white/5 rounded-lg px-4 py-3 border border-white/10">
+                    <div className="min-w-0 mr-3 w-full">
+                      <Skeleton className="h-4 w-2/3 mb-1" />
+                      <Skeleton className="h-3 w-1/3" />
+                    </div>
+                    <Skeleton className="h-9 w-24 rounded-md" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       <div className="space-y-8">

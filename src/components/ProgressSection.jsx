@@ -4,10 +4,12 @@ import { TrendingUp } from 'lucide-react';
 import { Helmet } from 'react-helmet';
 import { supabase, supabaseUrl, supabaseAnonKey } from '@/lib/customSupabaseClient';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const ProgressSection = () => {
   const { loading: authLoading } = useAuth();
   const [adfIds, setAdfIds] = useState([]);
+  const [adfLoading, setAdfLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [metrics, setMetrics] = useState([]); // { id, spent_hours, total_hours }
@@ -18,6 +20,7 @@ const ProgressSection = () => {
     const loadAdfIds = async () => {
       if (authLoading) return;
       try {
+        setAdfLoading(true);
         const controller = new AbortController();
         const functionsBase = supabaseUrl.replace('supabase.co', 'functions.supabase.co');
         const url = `${functionsBase}/get-adf`;
@@ -38,6 +41,8 @@ const ProgressSection = () => {
         if (isMounted) setAdfIds(ids);
       } catch (err) {
         if (isMounted) setError(err?.message || 'Erreur lors de la récupération des ADF');
+      } finally {
+        if (isMounted) setAdfLoading(false);
       }
     };
     loadAdfIds();
@@ -125,9 +130,15 @@ const ProgressSection = () => {
           Vos ADF
         </h3>
 
-        {loading && <div className="text-white/70 text-sm">Chargement…</div>}
+        {(adfLoading || loading) && (
+          <div className="grid grid-cols-1 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 w-full rounded-md" />
+            ))}
+          </div>
+        )}
         {error && <div className="text-red-300 text-sm">{error}</div>}
-        {!loading && !error && adfIds.length === 0 && (
+        {!(adfLoading || loading) && !error && adfIds.length === 0 && (
           <div className="text-white/70 text-sm">Aucune ADF trouvée.</div>
         )}
 

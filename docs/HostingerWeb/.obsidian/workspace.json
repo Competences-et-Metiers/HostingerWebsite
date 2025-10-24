@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Project timeline.md",
+                "file": "TODO.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Project timeline"
+              "title": "TODO"
             }
           }
         ]
@@ -142,13 +142,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Project timeline.md",
+                "file": "POC.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of Project timeline"
+              "title": "Outline of POC"
             }
           }
         ],
@@ -209,16 +209,17 @@
       }
     ]
   },
-  "active": "abdd2b04653f7498",
+  "active": "01e4672b629af2be",
   "lastOpenFiles": [
+    "TODO.md",
     "POC.md",
     "Project timeline.md",
     "Relation diagrams.md",
     "Roadmap.md",
-    "BDC duration.md",
-    "Calendar.md",
-    "2025-10-06.md",
     "POC (FR).md",
+    "BDC duration.md",
+    "2025-10-06.md",
+    "Calendar.md",
     "Dashboard.md",
     "Pasted image 20251008185100.png",
     "Pasted image 20251008185014.png",

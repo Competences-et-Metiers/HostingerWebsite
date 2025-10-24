@@ -72,20 +72,10 @@ const SideMenu = ({ onClose }) => {
     <motion.aside
       initial={{ x: '-100%' }}
       animate={{ x: 0 }}
+      exit={{ x: '-100%', opacity: 0 }}
       transition={{ duration: 0.7, ease: [0.6, 0.01, -0.05, 0.9] }}
-      className="w-72 bg-black/20 backdrop-blur-xl border-r border-white/10 flex flex-col justify-between p-4 relative"
+      className="w-72 bg-black/20 backdrop-blur-xl border-r border-white/10 flex flex-col justify-between p-4 pt-12 relative"
     >
-      {onClose && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          className="absolute top-2 right-2 text-white/80 hover:text-white hover:bg-white/10"
-          aria-label="Fermer le menu"
-        >
-          <X className="h-5 w-5" />
-        </Button>
-      )}
       <div>
         <motion.div
           initial={{ opacity: 0, y: -20 }}
