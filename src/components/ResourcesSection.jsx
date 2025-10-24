@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ExternalLink, RefreshCw } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { supabase, supabaseUrl } from '@/lib/customSupabaseClient';
@@ -94,17 +94,7 @@ const ResourcesSection = () => {
           <h2 className="text-3xl font-bold text-white mb-2">Ressources de votre Bilan</h2>
           <p className="text-purple-200">Fichiers partagés, regroupés par action de formation</p>
         </div>
-        <div className="flex items-center space-x-3">
-          <Button
-            onClick={fetchResources}
-            variant="outline"
-            className="border-white/20 text-white hover:bg-white/10"
-            disabled={loading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Actualiser
-          </Button>
-        </div>
+        <div className="flex items-center space-x-3" />
       </div>
 
       {groups.length === 0 && !loading && (

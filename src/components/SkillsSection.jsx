@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { toast } from '@/components/ui/use-toast';
 import AdfCompetencyCard from '@/components/AdfCompetencyCard';
 import { fetchAdfCompetencies } from '@/lib/dendreo';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,12 +30,7 @@ const SkillsSection = () => {
     return () => { mounted = false; };
   }, []);
 
-  const handleAddSkill = () => {
-    toast({
-      title: "Ajouter une compétence",
-      description: "🚧 Cette fonctionnalité n'est pas encore implémentée—mais ne vous inquiétez pas ! Vous pouvez la demander dans votre prochaine requête ! 🚀"
-    });
-  };
+  
 
   return (
     <section className="space-y-8">
@@ -46,13 +39,6 @@ const SkillsSection = () => {
           <h2 className="text-3xl font-bold text-white mb-2">Mes Compétences</h2>
           <p className="text-purple-200">Évaluez et développez vos compétences professionnelles</p>
         </div>
-        <Button
-          onClick={handleAddSkill}
-          className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Ajouter
-        </Button>
       </div>
 
       {loading ? (
