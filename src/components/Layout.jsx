@@ -24,6 +24,18 @@ const Layout = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 flex relative overflow-hidden">
+      {/* Global fixed menu toggle, stays in same position */}
+      <div className="fixed top-3 left-3 z-[60]">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsMenuOpen((v) => !v)}
+          className="text-white hover:bg-white/10"
+          aria-label="Ouvrir/fermer le menu"
+        >
+          <PanelLeft className="h-5 w-5" />
+        </Button>
+      </div>
       <AnimatePresence initial={false}>
         {isMenuOpen && (
           <SideMenu onClose={() => setIsMenuOpen(false)} />

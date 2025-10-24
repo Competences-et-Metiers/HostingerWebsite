@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { User, Bell, PanelLeft } from 'lucide-react';
+import { User, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -21,18 +21,9 @@ const Header = ({ onToggleNotifications, onToggleMenu, title, subtitle }) => {
       transition={{ duration: 0.6 }}
       className="bg-white/5 backdrop-blur-lg border-b border-white/10 sticky top-0 z-40"
     >
-      <div className="px-8 py-4">
+      <div className="px-8 py-4 pl-14">
           <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onToggleMenu}
-              className="text-white hover:bg-white/10"
-              aria-label="Ouvrir/fermer le menu"
-            >
-              <PanelLeft className="h-5 w-5" />
-            </Button>
             <div>
               <h1 className="text-xl font-bold text-white">{title || `Bienvenue, ${userName} !`}</h1>
               <p className="text-purple-200 text-sm">{subtitle || ''}</p>

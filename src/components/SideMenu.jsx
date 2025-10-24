@@ -28,7 +28,7 @@ const NavItem = ({ icon: Icon, label, path, delay, onClose }) => {
         to={path}
         end={path === "/"}
         onClick={() => {
-          if (typeof onClose === 'function' && typeof window !== 'undefined' && window.innerWidth < 1024) {
+          if (typeof onClose === 'function') {
             onClose();
           }
         }}
@@ -56,14 +56,14 @@ const SideMenu = ({ onClose }) => {
       title: "Déconnexion",
       description: "Vous avez été déconnecté avec succès.",
     });
-    if (typeof onClose === 'function' && typeof window !== 'undefined' && window.innerWidth < 1024) {
+    if (typeof onClose === 'function') {
       onClose();
     }
   };
 
   const handleSettings = () => {
     navigate('/settings');
-    if (typeof onClose === 'function' && typeof window !== 'undefined' && window.innerWidth < 1024) {
+    if (typeof onClose === 'function') {
       onClose();
     }
   };
@@ -74,7 +74,7 @@ const SideMenu = ({ onClose }) => {
       animate={{ x: 0 }}
       exit={{ x: '-100%', opacity: 0 }}
       transition={{ duration: 0.7, ease: [0.6, 0.01, -0.05, 0.9] }}
-      className="w-72 bg-black/20 backdrop-blur-xl border-r border-white/10 flex flex-col justify-between p-4 pt-12 relative"
+      className="fixed top-0 left-0 h-screen w-72 z-50 bg-black/40 backdrop-blur-xl border-r border-white/10 flex flex-col justify-between p-4 pt-12"
     >
       <div>
         <motion.div
