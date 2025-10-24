@@ -15,6 +15,7 @@ const CalendarPage = () => {
   const [adfLoading, setAdfLoading] = useState(true);
 
   const [currentDate, setCurrentDate] = useState(() => new Date());
+  const [view, setView] = useState('month'); // 'day' | 'week' | 'month'
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -115,12 +116,26 @@ const CalendarPage = () => {
     return map;
   }, [sessions, currentDate]);
 
-  const nextMonth = () => {
-    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  const addDays = (date, numDays) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + numDays);
+    return d;
   };
 
-  const prevMonth = () => {
-    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  const nextByView = () => {
+    setCurrentDate((prev) => {
+      if (view === 'day') return addDays(prev, 1);
+      if (view === 'week') return addDays(prev, 7);
+      return new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
+    });
+  };
+
+  const prevByView = () => {
+    setCurrentDate((prev) => {
+      if (view === 'day') return addDays(prev, -1);
+      if (view === 'week') return addDays(prev, -7);
+      return new Date(prev.getFullYear(), prev.getMonth() - 1, 1);
+    });
   };
 
   const presenceColor = (presence) => {
@@ -130,6 +145,13 @@ const CalendarPage = () => {
     return 'bg-gray-500/50 text-white';
   };
 
+  const presenceBg = (presence) => {
+    if (presence === '1') return 'bg-green-500/60';
+    if (presence === '2') return 'bg-red-500/60';
+    if (presence === '' || presence === null || presence === undefined) return 'bg-blue-500/50';
+    return 'bg-gray-500/50';
+  };
+
   const timeRange = (startStr, endStr) => {
     const start = parseDendreoDate(startStr);
     const end = parseDendreoDate(endStr);
@@ -137,6 +159,50 @@ const CalendarPage = () => {
     const fmt = { hour: '2-digit', minute: '2-digit' };
     return `${start.toLocaleTimeString('fr-FR', fmt)}–${end.toLocaleTimeString('fr-FR', fmt)}`;
   };
+
+  const getSessionsForDate = (date) => {
+    const result = [];
+    for (const session of sessions || []) {
+      const start = parseDendreoDate(session.date_debut);
+      if (!start) continue;
+      if (isSameDay(start, date)) result.push(session);
+    }
+    result.sort((a, b) => {
+      const sa = parseDendreoDate(a.date_debut)?.getTime() ?? 0;
+      const sb = parseDendreoDate(b.date_debut)?.getTime() ?? 0;
+      return sa - sb;
+    });
+    return result;
+  };
+
+  const startOfWeek = useMemo(() => {
+    const d = new Date(currentDate);
+    d.setHours(0, 0, 0, 0);
+    // Week starts on Sunday to match headers [Dim..Sam] alignment with getDay()
+    d.setDate(d.getDate() - d.getDay());
+    return d;
+  }, [currentDate]);
+
+  const weekDates = useMemo(() => {
+    const base = new Date(startOfWeek);
+    return Array.from({ length: 7 }, (_, i) => new Date(base.getFullYear(), base.getMonth(), base.getDate() + i));
+  }, [startOfWeek]);
+
+  const titleText = useMemo(() => {
+    if (view === 'day') {
+      return currentDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
+    if (view === 'week') {
+      const start = weekDates[0];
+      const end = weekDates[6];
+      const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+      if (sameMonth) {
+        return `${start.toLocaleDateString('fr-FR', { day: 'numeric' })}–${end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+      }
+      return `${start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })} – ${end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+    }
+    return `${monthName} ${year}`;
+  }, [view, currentDate, weekDates, monthName, year]);
 
   const calendarDays = Array.from({ length: firstDayOfMonth }, (_, i) => <div key={`empty-${i}`} className="border border-white/10"></div>);
 
@@ -155,10 +221,13 @@ const CalendarPage = () => {
               e.stopPropagation();
               setSelected({ session: s, anchorDay: day });
             }}
-            className={`mt-1 text-left text-[11px] md:text-xs p-1 rounded ${presenceColor(s?.lcps?.[0]?.presence)} hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40`}
+            className="mt-1 text-left text-[11px] md:text-xs p-1 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40"
           >
-            <div className="font-medium truncate">{s.name || 'Session'}</div>
-            <div className="opacity-90">{timeRange(s.date_debut, s.date_fin)}</div>
+            <div className={`block sm:hidden h-1.5 rounded-full ${presenceBg(s?.lcps?.[0]?.presence)}`} />
+            <div className={`hidden sm:block p-1 rounded ${presenceColor(s?.lcps?.[0]?.presence)}`}>
+              <div className="font-medium truncate">{s.name || 'Session'}</div>
+              <div className="opacity-90">{timeRange(s.date_debut, s.date_fin)}</div>
+            </div>
           </button>
         ))}
       </div>
@@ -186,14 +255,42 @@ const CalendarPage = () => {
         })()}
         
         <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <Button onClick={prevMonth} variant="ghost" size="icon" className="text-white hover:bg-white/20">
-              <ChevronLeft />
-            </Button>
-            <h3 className="text-xl font-semibold text-white capitalize">{monthName} {year}</h3>
-            <Button onClick={nextMonth} variant="ghost" size="icon" className="text-white hover:bg-white/20">
-              <ChevronRight />
-            </Button>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="order-1 text-center text-xl font-semibold text-white capitalize sm:order-none">{titleText}</h3>
+            <div className="order-2 flex items-center justify-center gap-2 sm:order-none">
+              <Button onClick={prevByView} variant="ghost" size="icon" className="text-white hover:bg-white/20" aria-label="Précédent">
+                <ChevronLeft />
+              </Button>
+              <div className="inline-flex items-center rounded-md bg-white/10 p-1">
+                <button
+                  type="button"
+                  onClick={() => setView('day')}
+                  aria-pressed={view === 'day'}
+                  className={`px-2 py-1 text-xs font-medium rounded ${view === 'day' ? 'bg-purple-600 text-white shadow' : 'text-white/80 hover:bg-white/10'}`}
+                >
+                  Jour
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView('week')}
+                  aria-pressed={view === 'week'}
+                  className={`px-2 py-1 text-xs font-medium rounded ${view === 'week' ? 'bg-purple-600 text-white shadow' : 'text-white/80 hover:bg-white/10'}`}
+                >
+                  Semaine
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView('month')}
+                  aria-pressed={view === 'month'}
+                  className={`px-2 py-1 text-xs font-medium rounded ${view === 'month' ? 'bg-purple-600 text-white shadow' : 'text-white/80 hover:bg-white/10'}`}
+                >
+                  Mois
+                </button>
+              </div>
+              <Button onClick={nextByView} variant="ghost" size="icon" className="text-white hover:bg-white/20" aria-label="Suivant">
+                <ChevronRight />
+              </Button>
+            </div>
           </div>
           {(adfLoading || loading) && (
             <Skeleton className="h-[60vh] w-full rounded-md" />
@@ -201,12 +298,86 @@ const CalendarPage = () => {
           {error && <div className="text-red-300 mb-2 text-sm">{error}</div>}
           {!(adfLoading || loading) && (
             <>
-              <div className="grid grid-cols-7 text-center text-white/70 mb-2">
-                {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map(day => <div key={day}>{day}</div>)}
-              </div>
-              <div className="grid grid-cols-7 h-[60vh]">
-                {calendarDays}
-              </div>
+              {view === 'month' && (
+                <>
+                  <div className="grid grid-cols-7 text-center text-white/70 mb-2">
+                    {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map(day => <div key={day}>{day}</div>)}
+                  </div>
+                  <div className="grid grid-cols-7 h-[60vh]">
+                    {calendarDays}
+                  </div>
+                </>
+              )}
+              {view === 'week' && (
+                <>
+                  <div className="grid grid-cols-7 text-center text-white/70 mb-2">
+                    {weekDates.map((d, idx) => (
+                      <div key={idx} className="capitalize">
+                        {d.toLocaleDateString('fr-FR', { weekday: 'short' })} {d.getDate()}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 h-[40vh]">
+                    {weekDates.map((d, idx) => {
+                      const isToday = isSameDay(d, today);
+                      const daySessions = getSessionsForDate(d);
+                      return (
+                        <div key={idx} className={`p-2 border border-white/10 flex flex-col gap-1 relative ${isToday ? 'bg-purple-500/30' : ''}`}>
+                          <span className={`font-semibold ${isToday ? 'text-purple-300' : 'text-white'}`}>{d.getDate()}</span>
+                          {daySessions.map((s) => (
+                            <button
+                              key={s.id_creneau}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelected({ session: s, anchorDay: d.getDate() });
+                              }}
+                              className="mt-1 text-left text-[11px] md:text-xs p-1 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40"
+                            >
+                              <div className={`block sm:hidden h-1.5 rounded-full ${presenceBg(s?.lcps?.[0]?.presence)}`} />
+                              <div className={`hidden sm:block p-1 rounded ${presenceColor(s?.lcps?.[0]?.presence)}`}>
+                                <div className="font-medium truncate">{s.name || 'Session'}</div>
+                                <div className="opacity-90">{timeRange(s.date_debut, s.date_fin)}</div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+              {view === 'day' && (
+                <div className="h-[40vh] overflow-auto border border-white/10 rounded-md p-3">
+                  {(() => {
+                    const daySessions = getSessionsForDate(currentDate);
+                    if (!daySessions.length) {
+                      return <div className="text-white/60 text-sm">Aucune session pour ce jour.</div>;
+                    }
+                    return (
+                      <div className="flex flex-col gap-2">
+                        {daySessions.map((s) => (
+                          <button
+                            key={s.id_creneau}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelected({ session: s, anchorDay: currentDate.getDate() });
+                            }}
+                            className="w-full text-left text-sm p-2 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40"
+                          >
+                            <div className={`block sm:hidden h-2 rounded-full ${presenceBg(s?.lcps?.[0]?.presence)}`} />
+                            <div className={`hidden sm:block p-2 rounded ${presenceColor(s?.lcps?.[0]?.presence)}`}>
+                              <div className="font-medium truncate">{s.name || 'Session'}</div>
+                              <div className="opacity-90 text-[12px]">{timeRange(s.date_debut, s.date_fin)}</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </>
           )}
           {(!adfLoading && (adfError || (!loading && adfIds.length === 0))) && (
