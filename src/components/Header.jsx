@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { User, Bell } from 'lucide-react';
+import { User, Bell, PanelLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -21,7 +21,8 @@ const Header = ({ onToggleNotifications, onToggleMenu, title, subtitle }) => {
       transition={{ duration: 0.6 }}
       className="bg-white/5 backdrop-blur-lg border-b border-white/10 sticky top-0 z-40"
     >
-      <div className="px-8 py-4 pl-14">
+      {/* Fixed header-aligned menu toggle */}
+      <div className="px-8 py-4">
           <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div>

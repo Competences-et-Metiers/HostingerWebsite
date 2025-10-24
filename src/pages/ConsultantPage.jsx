@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
@@ -14,6 +14,12 @@ const ConsultantPage = () => {
   const [error, setError] = useState(null);
   const [consultants, setConsultants] = useState([]);
   const [staff, setStaff] = useState(null);
+  const meetingsRef = useRef(null);
+  const [embedReady, setEmbedReady] = useState(false);
+  const [isFramed, setIsFramed] = useState(false);
+  const [embedFailed, setEmbedFailed] = useState(false);
+  const [showMeetingEmbed, setShowMeetingEmbed] = useState(false);
+  const meetingsContainerRef = useRef(null);
 
   const slugify = (value) => {
     if (!value) return '';
@@ -85,6 +91,56 @@ const ConsultantPage = () => {
     };
     run();
     return () => { isMounted = false; };
+  }, []);
+
+  // Load HubSpot Meetings embed script once
+  useEffect(() => {
+    const src = 'https://static.hsappstatic.net/MeetingsEmbed/ex/MeetingsEmbedCode.js';
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) return;
+    const script = document.createElement('script');
+    script.type = 'text/javascript';
+    script.src = src;
+    script.async = true;
+    document.body.appendChild(script);
+  }, []);
+
+  // Ensure script initializes after container is in DOM and user requested it
+  useEffect(() => {
+    if (!staff || !showMeetingEmbed || !meetingsRef.current) return;
+    // reset state on each open
+    setEmbedReady(false);
+    setEmbedFailed(false);
+    const src = 'https://static.hsappstatic.net/MeetingsEmbed/ex/MeetingsEmbedCode.js';
+    // Re-append script to force re-scan if needed
+    const script = document.createElement('script');
+    script.type = 'text/javascript';
+    script.src = src;
+    script.async = true;
+    document.body.appendChild(script);
+
+    const start = Date.now();
+    const interval = setInterval(() => {
+      const iframe = meetingsRef.current?.querySelector('iframe');
+      if (iframe) {
+        setEmbedReady(true);
+        setEmbedFailed(false);
+        clearInterval(interval);
+      } else if (Date.now() - start > 5000) {
+        setEmbedFailed(true);
+        clearInterval(interval);
+      }
+    }, 200);
+    return () => clearInterval(interval);
+  }, [staff, showMeetingEmbed]);
+
+  // Detect if app runs inside an iframe (builder/preview environments)
+  useEffect(() => {
+    try {
+      setIsFramed(window.top !== window.self);
+    } catch {
+      setIsFramed(true);
+    }
   }, []);
 
   const showToast = () => {
@@ -175,8 +231,6 @@ const ConsultantPage = () => {
 
                   <div className="flex-1 text-center md:text-left">
                     <h3 className="text-2xl font-bold text-white">{fullName || 'Consultant'}</h3>
-                    <p className="text-purple-200">Consultant en évolution professionnelle</p>
-
                     <div className="mt-6 space-y-3">
                       {email && (
                         <div className="flex items-center justify-center md:justify-start gap-3 text-white/80">
@@ -228,7 +282,6 @@ const ConsultantPage = () => {
               })()}
               <div className="flex-1 text-center md:text-left">
                 <h3 className="text-2xl font-bold text-white">{[staff?.nom, staff?.prenom].filter(Boolean).join(' ') || 'Conseiller Pédagogique'}</h3>
-                <p className="text-purple-200">{staff?.fonction || 'Conseiller Pédagogique'}</p>
                 <div className="mt-6 space-y-3">
                   {staff?.email && (
                     <div className="flex items-center justify-center md:justify-start gap-3 text-white/80">
@@ -244,20 +297,55 @@ const ConsultantPage = () => {
                   )}
                 </div>
                 <div className="mt-6 flex justify-center md:justify-start">
-                  {(() => {
-                    const nom = slugify(staff?.nom);
-                    const prenom = slugify(staff?.prenom);
-                    const meetingUrl = nom && prenom ? `https://meetings-eu1.hubspot.com/${prenom}-${nom}` : null;
-                    return meetingUrl ? (
-                      <a href={meetingUrl} target="_blank" rel="noopener noreferrer">
-                        <Button className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-6 text-base">
-                          <Calendar className="w-5 h-5 mr-2" />
-                          Prendre rendez-vous
-                        </Button>
-                      </a>
-                    ) : null;
-                  })()}
+                  <Button
+                    onClick={() => {
+                      setShowMeetingEmbed(prev => {
+                        const next = !prev;
+                        if (next) {
+                          setTimeout(() => {
+                            meetingsContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }, 50);
+                        }
+                        return next;
+                      });
+                    }}
+                    aria-expanded={showMeetingEmbed}
+                    aria-controls="meetings-embed"
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-6 text-base"
+                  >
+                    <Calendar className="w-5 h-5 mr-2" />
+                    {showMeetingEmbed ? 'Fermer le calendrier de rendez-vous' : 'Ouvrir le calendrier de rendez-vous'}
+                  </Button>
                 </div>
+
+                {/* Embedded HubSpot Meetings container; render on demand */}
+                {showMeetingEmbed && (
+                  <div ref={meetingsContainerRef} id="meetings-embed" className="mt-6 w-full">
+                    <div
+                      ref={meetingsRef}
+                      className="meetings-iframe-container"
+                      data-src="https://meetings-eu1.hubspot.com/tuan-le?embed=true"
+                    ></div>
+                    {embedFailed && (
+                      <div className="mt-4">
+                        <p className="text-white/80 mb-3">Le module de prise de rendez-vous ne peut pas s'afficher ici. Ouvrez-le dans un nouvel onglet :</p>
+                        {(() => {
+                          const nom = slugify(staff?.nom);
+                          const prenom = slugify(staff?.prenom);
+                          const fallbackUrl = nom && prenom ? `https://meetings-eu1.hubspot.com/${prenom}-${nom}` : 'https://meetings-eu1.hubspot.com/tuan-le';
+                          return (
+                            <a href={fallbackUrl} target="_blank" rel="noopener noreferrer">
+                              <Button className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-6 text-base">
+                                <Calendar className="w-5 h-5 mr-2" />
+                                Ouvrir le calendrier
+                              </Button>
+                            </a>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </>
