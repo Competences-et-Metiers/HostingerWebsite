@@ -7,7 +7,7 @@ import { supabase, supabaseUrl, supabaseAnonKey } from '@/lib/customSupabaseClie
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const ProgressSection = () => {
+const ProgressPage = () => {
   const { loading: authLoading } = useAuth();
   const [adfIds, setAdfIds] = useState([]);
   const [adfLoading, setAdfLoading] = useState(true);
@@ -170,4 +170,4 @@ const ProgressSection = () => {
   );
 };
 
-export default ProgressSection;
+export default ProgressPage;

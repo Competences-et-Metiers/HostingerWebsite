@@ -9,7 +9,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 const functionsBase = `${supabaseUrl}/functions/v1`;
 
-const ResourcesSection = () => {
+
+
+const ResourcesPage = () => {
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState([]); // [{ adfId, title, files: [] }]
 
@@ -167,4 +169,4 @@ const ResourcesSection = () => {
   );
 };
 
-export default ResourcesSection;
+export default ResourcesPage;

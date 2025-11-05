@@ -6,7 +6,7 @@ import AdfCompetencyCard from '@/components/AdfCompetencyCard';
 import { fetchAdfCompetencies } from '@/lib/dendreo';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const SkillsSection = () => {
+const SkillsPages = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [adfs, setAdfs] = useState([]);
@@ -84,4 +84,4 @@ const SkillsSection = () => {
   );
 };
 
-export default SkillsSection;
+export default SkillsPages;
