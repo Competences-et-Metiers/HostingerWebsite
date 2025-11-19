@@ -5,23 +5,22 @@ import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { supabase } from '@/lib/customSupabaseClient';
-import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { useAdfIds } from '@/hooks/useDendreoData';
+import { useCalendarSessions } from '@/hooks/useCalendarData';
 
 const CalendarPage = () => {
-  const { loading: authLoading } = useAuth();
-  const [adfIds, setAdfIds] = useState([]);
-  const [adfError, setAdfError] = useState(null);
-  const [adfLoading, setAdfLoading] = useState(true);
+  // Use cached hooks
+  const { data: adfData, isLoading: adfLoading, error: adfError } = useAdfIds();
+  const adfIds = Array.isArray(adfData?.adf_ids) ? adfData.adf_ids.map(String) : [];
+  const extranetCode = adfData?.extranet_code_numeric || 
+    (adfData?.extranet_code ? String(adfData.extranet_code).replace(/[^0-9]/g, '') : null);
+  
+  const { data: sessions = [], isLoading: loading, error } = useCalendarSessions(adfIds);
 
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [view, setView] = useState('month'); // 'day' | 'week' | 'month'
-  const [sessions, setSessions] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null); // currently selected session for popover
   const popoverRef = useRef(null);
-  const [extranetCode, setExtranetCode] = useState(null);
 
   const monthName = currentDate.toLocaleString('fr-FR', { month: 'long' });
   const year = currentDate.getFullYear();
@@ -37,62 +36,6 @@ const CalendarPage = () => {
     // Dendreo style: "YYYY-MM-DD HH:mm:ss" -> ensure ISO-like with 'T'
     return new Date(String(value).replace(' ', 'T'));
   };
-
-  // Load ADF IDs from get-adf function (requires authenticated user)
-  useEffect(() => {
-    let isMounted = true;
-    const loadAdfIds = async () => {
-      if (authLoading) return; // wait for auth readiness
-      setAdfError(null);
-      try {
-        setAdfLoading(true);
-        const { data, error } = await supabase.functions.invoke('get-adf', { method: 'GET' });
-        if (error) throw error;
-        const ids = Array.isArray(data?.adf_ids) ? data.adf_ids.map(String) : [];
-        const codeNumeric = data?.extranet_code_numeric ?? null;
-        const codeFormatted = data?.extranet_code ? String(data.extranet_code).replace(/[^0-9]/g, '') : null;
-        const finalCode = codeNumeric || codeFormatted || null;
-        if (isMounted) setAdfIds(ids);
-        if (isMounted) setExtranetCode(finalCode);
-      } catch (err) {
-        if (isMounted) setAdfError(err?.message || 'Erreur lors de la récupération des ADF');
-      } finally {
-        if (isMounted) setAdfLoading(false);
-      }
-    };
-    loadAdfIds();
-    return () => { isMounted = false; };
-  }, [authLoading]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const fetchSessions = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const { data, error } = await supabase.functions.invoke('calendar', {
-          body: { adfIds },
-        });
-        if (error) throw error;
-        if (!isMounted) return;
-        // Expecting array; if wrapped, try to unwrap
-        const result = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
-        setSessions(result);
-      } catch (err) {
-        if (!isMounted) return;
-        setError(err?.message || 'Erreur lors du chargement du calendrier');
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-    if (adfIds && adfIds.length > 0) {
-      fetchSessions();
-    } else {
-      // if no ADFs, clear sessions
-      setSessions([]);
-    }
-    return () => { isMounted = false; };
-  }, [adfIds.join(',')]);
 
   const sessionsByDay = useMemo(() => {
     const map = new Map();
@@ -292,7 +235,7 @@ const CalendarPage = () => {
               </Button>
             </div>
           </div>
-          {(adfLoading || loading) && (
+          {(loading || adfLoading) && (
             <Skeleton className="h-[60vh] w-full rounded-md" />
           )}
           {error && <div className="text-red-300 mb-2 text-sm">{error}</div>}

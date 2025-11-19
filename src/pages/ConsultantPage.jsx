@@ -1,19 +1,34 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { Mail, Phone, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { fetchAdfIds, fetchConsultantsByAdfIds, formatFrenchPhoneNumber, fetchStaffById } from '@/lib/dendreo';
+import { formatFrenchPhoneNumber } from '@/lib/dendreo';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAdfIds } from '@/hooks/useDendreoData';
+import { useConsultants, useStaff } from '@/hooks/useConsultantData';
 
 const ConsultantPage = () => {
   const { toast } = useToast();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [consultants, setConsultants] = useState([]);
-  const [staff, setStaff] = useState(null);
+  
+  // Use cached hooks
+  const { data: adfData, isLoading: adfLoading, error: adfError } = useAdfIds();
+  const adfIds = Array.isArray(adfData?.adf_ids) ? adfData.adf_ids : [];
+  const { data: consultants = [], isLoading: consultantsLoading, error: consultantsError } = useConsultants(adfIds);
+  
+  // Get staff ID from first available ADF
+  const staffId = useMemo(() => {
+    const respoMap = adfData?.adf_responsables || {};
+    const firstAdfId = adfIds.find(id => respoMap && respoMap[id]);
+    return firstAdfId ? respoMap[firstAdfId] : null;
+  }, [adfData, adfIds]);
+  
+  const { data: staff = null, isLoading: staffLoading } = useStaff(staffId);
+  
+  const loading = adfLoading || consultantsLoading || staffLoading;
+  const error = adfError || consultantsError;
   const meetingsRef = useRef(null);
   const [embedReady, setEmbedReady] = useState(false);
   const [isFramed, setIsFramed] = useState(false);
@@ -50,48 +65,13 @@ const ConsultantPage = () => {
     return `tel:${e164}`;
   };
 
+  // Show error toast if there's an error
   useEffect(() => {
-    let isMounted = true;
-    const run = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const adfRes = await fetchAdfIds();
-        const adfIds = Array.isArray(adfRes?.adf_ids) ? adfRes.adf_ids : [];
-        if (!adfIds.length) {
-          if (isMounted) setConsultants([]);
-          if (isMounted) setStaff(null);
-          return;
-        }
-        const cRes = await fetchConsultantsByAdfIds(adfIds);
-        const list = Array.isArray(cRes?.consultants) ? cRes.consultants : [];
-        if (isMounted) setConsultants(list);
-
-        // Try to get one id_responsable from the first available ADF in map
-        const respoMap = adfRes?.adf_responsables || {};
-        const firstAdfId = adfIds.find(id => respoMap && respoMap[id]);
-        if (firstAdfId) {
-          const staffId = respoMap[firstAdfId];
-          if (staffId) {
-            try {
-              const s = await fetchStaffById(staffId);
-              if (isMounted) setStaff(s);
-            } catch (e) {
-              // non blocking
-            }
-          }
-        }
-      } catch (e) {
-        const msg = e?.message || 'Erreur lors du chargement des consultants';
-        setError(msg);
-        toast({ variant: 'destructive', title: 'Erreur', description: msg });
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-    run();
-    return () => { isMounted = false; };
-  }, []);
+    if (error) {
+      const msg = error?.message || 'Erreur lors du chargement des consultants';
+      toast({ variant: 'destructive', title: 'Erreur', description: msg });
+    }
+  }, [error, toast]);
 
   // Load HubSpot Meetings embed script once
   useEffect(() => {

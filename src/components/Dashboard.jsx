@@ -1,18 +1,24 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { TrendingUp, Target, BookOpen, Award } from 'lucide-react';
 import StatsCard from '@/components/StatsCard';
 import { Helmet } from 'react-helmet';
-import { supabaseUrl, supabaseAnonKey, supabase } from '@/lib/customSupabaseClient';
+import { useAdfIds, useMultipleAdfMetrics, useAdfMetrics } from '@/hooks/useDendreoData';
 
 const Dashboard = () => {
-  const [spentHours, setSpentHours] = useState(null);
-  const [remainingHours, setRemainingHours] = useState(null);
-  const [totalHours, setTotalHours] = useState(null);
-  const [adfIds, setAdfIds] = useState([]);
-  const [globalProgress, setGlobalProgress] = useState(null);
   const [displayedProgress, setDisplayedProgress] = useState(0);
+  
+  // Use cached hooks
+  const { data: adfData } = useAdfIds();
+  const adfIds = Array.isArray(adfData?.adf_ids) ? adfData.adf_ids.map(String) : [];
+  const { data: allMetrics } = useMultipleAdfMetrics(adfIds);
+  
+  // Get metrics for first ADF (447) for the main stats
+  const { data: mainAdfData } = useAdfMetrics('447');
+  const spentHours = mainAdfData?.spent_hours ?? null;
+  const remainingHours = mainAdfData?.remaining_hours ?? null;
+  const totalHours = mainAdfData?.total_hours ?? null;
 
   const formatHours = (value) => {
     if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -24,114 +30,18 @@ const Dashboard = () => {
     return `${h} h ${m} min`;
   };
 
-  useEffect(() => {
-    const controller = new AbortController();
-    const fetchHours = async () => {
-      try {
-        const ADF_ID = '447';
-        const functionsBase = supabaseUrl.replace('supabase.co', 'functions.supabase.co');
-        const url = `${functionsBase}/test?id=${encodeURIComponent(ADF_ID)}`;
-        let authHeader = supabaseAnonKey;
-        try {
-          const { data } = await supabase.auth.getSession();
-          const jwt = data?.session?.access_token;
-          if (jwt) authHeader = `Bearer ${jwt}`;
-        } catch (_) {}
-        const res = await fetch(url, {
-          method: 'GET',
-          headers: {
-            apikey: supabaseAnonKey,
-            Authorization: authHeader
-          },
-          signal: controller.signal
-        });
-        if (!res.ok) {
-          return;
-        }
-        const data = await res.json();
-        if (typeof data?.spent_hours === 'number') setSpentHours(Number(data.spent_hours));
-        if (typeof data?.remaining_hours === 'number') setRemainingHours(Number(data.remaining_hours));
-        if (typeof data?.total_hours === 'number') setTotalHours(Number(data.total_hours));
-      } catch (_) {
-        // swallow
-      }
-    };
-    const fetchAdfs = async () => {
-      try {
-        const functionsBase = supabaseUrl.replace('supabase.co', 'functions.supabase.co');
-        const url = `${functionsBase}/get-adf`;
-        let authHeader = supabaseAnonKey;
-        try {
-          const { data } = await supabase.auth.getSession();
-          const jwt = data?.session?.access_token;
-          if (jwt) authHeader = `Bearer ${jwt}`;
-        } catch (_) {}
-        const res = await fetch(url, {
-          method: 'GET',
-          headers: {
-            apikey: supabaseAnonKey,
-            Authorization: authHeader
-          },
-          signal: controller.signal
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (Array.isArray(data?.adf_ids)) {
-          setAdfIds(data.adf_ids.map((v) => String(v)));
-        }
-      } catch (_) {
-        // swallow
-      }
-    };
-    fetchHours();
-    fetchAdfs();
-    return () => controller.abort();
-  }, []);
-
   // Compute average progression across all ADFs (progression globale)
-  useEffect(() => {
-    let isMounted = true;
-    const computeGlobalProgress = async () => {
-      if (!adfIds || adfIds.length === 0) {
-        if (isMounted) setGlobalProgress(null);
-        return;
-      }
-      try {
-        const functionsBase = supabaseUrl.replace('supabase.co', 'functions.supabase.co');
-        let authHeader = supabaseAnonKey;
-        try {
-          const { data } = await supabase.auth.getSession();
-          const jwt = data?.session?.access_token;
-          if (jwt) authHeader = `Bearer ${jwt}`;
-        } catch (_) {}
-        const results = await Promise.allSettled(
-          adfIds.map(async (id) => {
-            const url = `${functionsBase}/test?id=${encodeURIComponent(id)}`;
-            const res = await fetch(url, {
-              method: 'GET',
-              headers: { apikey: supabaseAnonKey, Authorization: authHeader }
-            });
-            if (!res.ok) throw new Error(`test ${res.status}`);
-            const payload = await res.json();
-            const spent = Number(payload.spent_hours ?? 0) || 0;
-            const total = Number(payload.total_hours ?? 0) || 0;
-            const pct = total > 0 ? Math.min(100, Math.round((spent / total) * 100)) : 0;
-            return pct;
-          })
-        );
-        if (!isMounted) return;
-        const pcts = results
-          .filter((r) => r.status === 'fulfilled')
-          .map((r) => r.value);
-        const avg = pcts.length > 0 ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : 0;
-        setGlobalProgress(avg);
-      } catch (_) {
-        if (isMounted) setGlobalProgress(null);
-      }
-    };
-    computeGlobalProgress();
-    return () => { isMounted = false; };
-  }, [adfIds.join(',')]);
+  const globalProgress = useMemo(() => {
+    if (!allMetrics || allMetrics.length === 0) return null;
+    
+    const pcts = allMetrics.map((m) => {
+      const spent = Number(m.spent_hours ?? 0) || 0;
+      const total = Number(m.total_hours ?? 0) || 0;
+      return total > 0 ? Math.min(100, Math.round((spent / total) * 100)) : 0;
+    });
+    
+    return pcts.length > 0 ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : 0;
+  }, [allMetrics]);
 
   // Animate the visible percentage value when globalProgress updates
   useEffect(() => {

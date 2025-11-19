@@ -1,35 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import AdfCompetencyCard from '@/components/AdfCompetencyCard';
-import { fetchAdfCompetencies } from '@/lib/dendreo';
+import { useAdfCompetencies } from '@/hooks/useDendreoData';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const SkillsPages = () => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [adfs, setAdfs] = useState([]);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await fetchAdfCompetencies();
-        if (!mounted) return;
-        setAdfs(Array.isArray(data?.adfs) ? data.adfs : []);
-      } catch (err) {
-        if (!mounted) return;
-        setError(err?.message || 'Impossible de charger les compétences');
-      } finally {
-        if (!mounted) return;
-        setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
+  const { data, isLoading: loading, error: queryError } = useAdfCompetencies();
+  const error = queryError?.message || null;
+  const adfs = Array.isArray(data?.adfs) ? data.adfs : [];
 
   
 

@@ -33,6 +33,10 @@ async function readJsonSafe(res: Response): Promise<unknown> {
   }
 }
 
+// Open Deno KV for caching
+const kv = await Deno.openKv();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 serve(async (req) => {
   const origin = req.headers.get("origin");
   const headers = corsHeaders(origin);
@@ -87,6 +91,22 @@ serve(async (req) => {
       });
     }
 
+    // Try to get from cache
+    const cacheKey = ["get-adf", email];
+    try {
+      const cached = await kv.get(cacheKey);
+      if (cached.value && typeof cached.value === "object") {
+        console.log(`[get-adf] ✅ Cache HIT for ${email}`);
+        return new Response(JSON.stringify(cached.value), {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json", "X-Cache": "HIT" },
+        });
+      }
+    } catch (e) {
+      console.warn("[get-adf] Cache read error:", e);
+      // Continue without cache
+    }
+
     // Prefer env var; fallback to constant provided in request if env missing
     const envKey = Deno.env.get("DENDREO_API_KEY");
     const apiKey = envKey && envKey.trim().length > 0 ? envKey : "";
@@ -136,6 +156,7 @@ serve(async (req) => {
     // 2) laps by participant
     const lapsUrl = new URL("https://pro.dendreo.com/competences_et_metiers/api/laps.php");
     lapsUrl.searchParams.set("id_participant", participantId);
+    lapsUrl.searchParams.set("include", "action_de_formation");
     lapsUrl.searchParams.set("key", apiKey);
 
     const ctrl2 = new AbortController();
@@ -234,9 +255,31 @@ serve(async (req) => {
     }
     const adf_responsables = Object.fromEntries(Array.from(adfResponsables.entries()));
     const extranet_code_numeric = extranetCode ? extranetCode.replace(/\D/g, "") : null;
+    
+    const responseData = { 
+      email, 
+      id_participant: participantId, 
+      adf_ids, 
+      lap_ids, 
+      adf_to_lap_ids, 
+      adf_titles, 
+      adf_responsables, 
+      extranet_code: extranetCode, 
+      extranet_code_numeric 
+    };
+    
+    // Store in cache
+    try {
+      await kv.set(cacheKey, responseData, { expireIn: CACHE_TTL_MS });
+      console.log(`[get-adf] 💾 Cached for ${email} (TTL: ${CACHE_TTL_MS}ms)`);
+    } catch (e) {
+      console.warn("[get-adf] Cache write error:", e);
+      // Continue without caching
+    }
+    
     return new Response(
-      JSON.stringify({ email, id_participant: participantId, adf_ids, lap_ids, adf_to_lap_ids, adf_titles, adf_responsables, extranet_code: extranetCode, extranet_code_numeric }),
-      { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+      JSON.stringify(responseData),
+      { status: 200, headers: { ...headers, "Content-Type": "application/json", "X-Cache": "MISS" } }
     );
   } catch (err) {
     const msg = err instanceof Error && err.name === "AbortError"

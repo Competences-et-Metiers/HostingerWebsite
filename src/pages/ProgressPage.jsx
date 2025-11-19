@@ -1,104 +1,19 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { TrendingUp } from 'lucide-react';
 import { Helmet } from 'react-helmet';
-import { supabase, supabaseUrl, supabaseAnonKey } from '@/lib/customSupabaseClient';
-import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAdfIds, useMultipleAdfMetrics } from '@/hooks/useDendreoData';
 
 const ProgressPage = () => {
-  const { loading: authLoading } = useAuth();
-  const [adfIds, setAdfIds] = useState([]);
-  const [adfLoading, setAdfLoading] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [metrics, setMetrics] = useState([]); // { id, spent_hours, total_hours }
-
-  // Load ADF IDs from edge function for authenticated user
-  useEffect(() => {
-    let isMounted = true;
-    const loadAdfIds = async () => {
-      if (authLoading) return;
-      try {
-        setAdfLoading(true);
-        const controller = new AbortController();
-        const functionsBase = supabaseUrl.replace('supabase.co', 'functions.supabase.co');
-        const url = `${functionsBase}/get-adf`;
-        let authHeader = supabaseAnonKey;
-        try {
-          const { data } = await supabase.auth.getSession();
-          const jwt = data?.session?.access_token;
-          if (jwt) authHeader = `Bearer ${jwt}`;
-        } catch (_) {}
-        const res = await fetch(url, {
-          method: 'GET',
-          headers: { apikey: supabaseAnonKey, Authorization: authHeader },
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error(`get-adf ${res.status}`);
-        const data = await res.json();
-        const ids = Array.isArray(data?.adf_ids) ? data.adf_ids.map(String) : [];
-        if (isMounted) setAdfIds(ids);
-      } catch (err) {
-        if (isMounted) setError(err?.message || 'Erreur lors de la récupération des ADF');
-      } finally {
-        if (isMounted) setAdfLoading(false);
-      }
-    };
-    loadAdfIds();
-    return () => { isMounted = false; };
-  }, [authLoading]);
-
-  // Fetch metrics for each ADF using the edge function that computes hours
-  useEffect(() => {
-    let isMounted = true;
-    const fetchAll = async () => {
-      if (!adfIds || adfIds.length === 0) {
-        setMetrics([]);
-        return;
-      }
-      setLoading(true);
-      setError(null);
-      try {
-        const functionsBase = supabaseUrl.replace('supabase.co', 'functions.supabase.co');
-        let authHeader = supabaseAnonKey;
-        try {
-          const { data } = await supabase.auth.getSession();
-          const jwt = data?.session?.access_token;
-          if (jwt) authHeader = `Bearer ${jwt}`;
-        } catch (_) {}
-        const results = await Promise.allSettled(
-          adfIds.map(async (id) => {
-            const url = `${functionsBase}/test?id=${encodeURIComponent(id)}`;
-            const res = await fetch(url, {
-              method: 'GET',
-              headers: { apikey: supabaseAnonKey, Authorization: authHeader },
-            });
-            if (!res.ok) throw new Error(`test ${res.status}`);
-            const payload = await res.json();
-            const spent = Number(payload.spent_hours ?? 0) || 0;
-            const total = Number(payload.total_hours ?? 0) || 0;
-            const title = typeof payload.intitule === 'string' && payload.intitule.trim() ? payload.intitule.trim() : undefined;
-            return { id: String(payload.id || id), title, spent_hours: spent, total_hours: total };
-          })
-        );
-        if (!isMounted) return;
-        const ok = results
-          .filter((r) => r.status === 'fulfilled')
-          .map((r) => r.value);
-        setMetrics(ok);
-      } catch (err) {
-        if (!isMounted) return;
-        setError(err?.message || 'Erreur lors du chargement des métriques');
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-    fetchAll();
-    // join in dep to avoid ref churn
-    return () => { isMounted = false; };
-  }, [adfIds.join(',')]);
+  // Fetch ADF IDs with caching
+  const { data: adfData, isLoading: adfLoading, error: adfError } = useAdfIds();
+  const adfIds = Array.isArray(adfData?.adf_ids) ? adfData.adf_ids.map(String) : [];
+  
+  // Fetch metrics for all ADFs with caching
+  const { data: metrics, isLoading: loading, isError } = useMultipleAdfMetrics(adfIds);
+  const error = adfError?.message || (isError ? 'Erreur lors du chargement des métriques' : null);
 
   const rows = useMemo(() => {
     return (metrics || []).map((m) => {

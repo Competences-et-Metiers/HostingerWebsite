@@ -1,89 +1,33 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
-import { supabase, supabaseUrl } from '@/lib/customSupabaseClient';
 import { Skeleton } from '@/components/ui/skeleton';
-
-const functionsBase = `${supabaseUrl}/functions/v1`;
-
-
+import { useAdfIds } from '@/hooks/useDendreoData';
+import { useResourceGroups } from '@/hooks/useResourcesData';
 
 const ResourcesPage = () => {
-  const [loading, setLoading] = useState(true);
-  const [groups, setGroups] = useState([]); // [{ adfId, title, files: [] }]
-
-  const fetchResources = useMemo(() => async () => {
-    setLoading(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const authHeader = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
-
-      const resAdf = await fetch(`${functionsBase}/get-adf`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json', ...authHeader },
-      });
-      if (!resAdf.ok) {
-        const errBody = await resAdf.json().catch(() => ({}));
-        throw new Error(errBody?.error || `get-adf failed (${resAdf.status})`);
-      }
-      const adfPayload = await resAdf.json();
-      const adfIds = Array.isArray(adfPayload?.adf_ids) ? adfPayload.adf_ids : [];
-      const lapIds = Array.isArray(adfPayload?.lap_ids) ? adfPayload.lap_ids : [];
-      const adfToLapIds = adfPayload?.adf_to_lap_ids || {};
-      const adfTitles = adfPayload?.adf_titles || {};
-
-      if (lapIds.length === 0 || adfIds.length === 0) {
-        setGroups([]);
-        toast({ title: 'Aucune ressource', description: "Aucun fichier partagé n'a été trouvé pour vos formations." });
-        return;
-      }
-
-      const resFiles = await fetch(`${functionsBase}/lap-files?lap_ids=${encodeURIComponent(lapIds.join(','))}`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json', ...authHeader },
-      });
-      if (!resFiles.ok) {
-        const errBody = await resFiles.json().catch(() => ({}));
-        throw new Error(errBody?.error || `lap-files failed (${resFiles.status})`);
-      }
-      const filesPayload = await resFiles.json();
-      const perLap = filesPayload?.per_lap || {};
-
-      const buildFilesFromLap = (lapBody) => {
-        if (!lapBody) return [];
-        if (Array.isArray(lapBody)) return lapBody;
-        if (typeof lapBody === 'object') {
-          const inner = lapBody?.fichiers;
-          return Array.isArray(inner) ? inner : [];
-        }
-        return [];
-      };
-
-      const builtGroups = adfIds.map((adfId) => {
-        const lapList = Array.isArray(adfToLapIds[adfId]) ? adfToLapIds[adfId] : [];
-        const files = [];
-        for (const lapId of lapList) {
-          const lapBody = perLap?.[lapId];
-          const lapFiles = buildFilesFromLap(lapBody);
-          for (const f of lapFiles) files.push(f);
-        }
-        return { adfId, title: adfTitles?.[adfId] || `Formation ${adfId}`, files };
-      }).filter(g => g.files.length > 0);
-
-      setGroups(builtGroups);
-    } catch (e) {
-      toast({ variant: 'destructive', title: 'Erreur de chargement', description: e?.message || 'Une erreur est survenue.' });
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Use cached hooks
+  const { data: adfData, isLoading: adfLoading } = useAdfIds();
+  const { groups, isLoading: filesLoading, error } = useResourceGroups(adfData);
+  
+  const loading = adfLoading || filesLoading;
+  
+  // Show toast if no resources found
   useEffect(() => {
-    fetchResources();
-  }, [fetchResources]);
+    if (!loading && groups.length === 0 && adfData?.adf_ids?.length > 0) {
+      toast({ title: 'Aucune ressource', description: "Aucun fichier partagé n'a été trouvé pour vos formations." });
+    }
+  }, [loading, groups.length, adfData, toast]);
+  
+  // Show error toast
+  useEffect(() => {
+    if (error) {
+      toast({ variant: 'destructive', title: 'Erreur de chargement', description: error?.message || 'Une erreur est survenue.' });
+    }
+  }, [error, toast]);
 
   const handleOpen = (url) => {
     if (!url) return;
