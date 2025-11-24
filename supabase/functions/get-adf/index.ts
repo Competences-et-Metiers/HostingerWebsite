@@ -7,7 +7,7 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
-const ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:5173", "https://yourapp.com"]; // adjust
+const ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "https://yourapp.com"]; // adjust
 
 function corsHeaders(origin: string | null) {
   const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : "*";
@@ -34,7 +34,14 @@ async function readJsonSafe(res: Response): Promise<unknown> {
 }
 
 // Open Deno KV for caching
-const kv = await Deno.openKv();
+let kv: Deno.Kv | null = null;
+try {
+  kv = await Deno.openKv();
+  console.log("[get-adf] Deno KV initialized successfully");
+} catch (e) {
+  console.warn("[get-adf] Failed to initialize Deno KV:", e);
+  // Continue without caching
+}
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 serve(async (req) => {
@@ -93,18 +100,20 @@ serve(async (req) => {
 
     // Try to get from cache
     const cacheKey = ["get-adf", email];
-    try {
-      const cached = await kv.get(cacheKey);
-      if (cached.value && typeof cached.value === "object") {
-        console.log(`[get-adf] ✅ Cache HIT for ${email}`);
-        return new Response(JSON.stringify(cached.value), {
-          status: 200,
-          headers: { ...headers, "Content-Type": "application/json", "X-Cache": "HIT" },
-        });
+    if (kv) {
+      try {
+        const cached = await kv.get(cacheKey);
+        if (cached.value && typeof cached.value === "object") {
+          console.log(`[get-adf] ✅ Cache HIT for ${email}`);
+          return new Response(JSON.stringify(cached.value), {
+            status: 200,
+            headers: { ...headers, "Content-Type": "application/json", "X-Cache": "HIT" },
+          });
+        }
+      } catch (e) {
+        console.warn("[get-adf] Cache read error:", e);
+        // Continue without cache
       }
-    } catch (e) {
-      console.warn("[get-adf] Cache read error:", e);
-      // Continue without cache
     }
 
     // Prefer env var; fallback to constant provided in request if env missing
@@ -269,12 +278,14 @@ serve(async (req) => {
     };
     
     // Store in cache
-    try {
-      await kv.set(cacheKey, responseData, { expireIn: CACHE_TTL_MS });
-      console.log(`[get-adf] 💾 Cached for ${email} (TTL: ${CACHE_TTL_MS}ms)`);
-    } catch (e) {
-      console.warn("[get-adf] Cache write error:", e);
-      // Continue without caching
+    if (kv) {
+      try {
+        await kv.set(cacheKey, responseData, { expireIn: CACHE_TTL_MS });
+        console.log(`[get-adf] 💾 Cached for ${email} (TTL: ${CACHE_TTL_MS}ms)`);
+      } catch (e) {
+        console.warn("[get-adf] Cache write error:", e);
+        // Continue without caching
+      }
     }
     
     return new Response(

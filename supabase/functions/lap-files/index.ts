@@ -5,7 +5,7 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
-const ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:5173", "https://yourapp.com"]; // adjust
+const ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "https://yourapp.com"]; // adjust
 
 function corsHeaders(origin: string | null) {
   const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : "*";
@@ -34,8 +34,17 @@ serve(async (req) => {
   const origin = req.headers.get("origin");
   const headers = corsHeaders(origin);
 
+  // CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers });
+    const requested = (req.headers.get("access-control-request-headers") || "").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean);
+    const defaultAllowed = (headers["Access-Control-Allow-Headers"] || "").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean);
+    const merged = Array.from(new Set([...defaultAllowed, ...requested])).join(", ");
+    const preflightHeaders = {
+      ...headers,
+      "Access-Control-Allow-Headers": merged || headers["Access-Control-Allow-Headers"],
+      "Access-Control-Max-Age": "86400",
+    } as Record<string, string>;
+    return new Response(null, { headers: preflightHeaders, status: 200 });
   }
 
   if (req.method !== "GET") {

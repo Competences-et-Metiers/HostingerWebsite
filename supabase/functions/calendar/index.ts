@@ -14,6 +14,7 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Max-Age": "86400",
   "Content-Type": "application/json",
 };
 
@@ -35,8 +36,15 @@ function errorResponse(status: number, message: string) {
 }
 
 Deno.serve(async (req) => {
+  // CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      headers: {
+        ...corsHeaders,
+        "Access-Control-Allow-Headers": req.headers.get("access-control-request-headers") || corsHeaders["Access-Control-Allow-Headers"]
+      },
+      status: 200 
+    });
   }
 
   try {

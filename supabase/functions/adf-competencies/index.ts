@@ -4,7 +4,7 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
-const ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:5173", "https://yourapp.com"]; // adjust
+const ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "https://yourapp.com"]; // adjust
 
 function corsHeaders(origin: string | null) {
   const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : "*";
@@ -173,15 +173,31 @@ function collectEvaluationsByAdf(payload: unknown): Map<string, EvalOut[]> {
 }
 
 // Open Deno KV for caching
-const kv = await Deno.openKv();
+let kv: Deno.Kv | null = null;
+try {
+  kv = await Deno.openKv();
+  console.log("[adf-competencies] Deno KV initialized successfully");
+} catch (e) {
+  console.warn("[adf-competencies] Failed to initialize Deno KV:", e);
+  // Continue without caching
+}
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 serve(async (req) => {
   const origin = req.headers.get("origin");
   const headers = corsHeaders(origin);
 
+  // CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers });
+    const requested = (req.headers.get("access-control-request-headers") || "").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean);
+    const defaultAllowed = (headers["Access-Control-Allow-Headers"] || "").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean);
+    const merged = Array.from(new Set([...defaultAllowed, ...requested])).join(", ");
+    const preflightHeaders = {
+      ...headers,
+      "Access-Control-Allow-Headers": merged || headers["Access-Control-Allow-Headers"],
+      "Access-Control-Max-Age": "86400",
+    } as Record<string, string>;
+    return new Response(null, { headers: preflightHeaders, status: 200 });
   }
 
   if (req.method !== "GET") {
@@ -222,18 +238,20 @@ serve(async (req) => {
 
     // Try to get from cache
     const cacheKey = ["adf-competencies", email];
-    try {
-      const cached = await kv.get(cacheKey);
-      if (cached.value && typeof cached.value === "object") {
-        console.log(`[adf-competencies] ✅ Cache HIT for ${email}`);
-        return new Response(JSON.stringify(cached.value), {
-          status: 200,
-          headers: { ...headers, "Content-Type": "application/json", "X-Cache": "HIT" },
-        });
+    if (kv) {
+      try {
+        const cached = await kv.get(cacheKey);
+        if (cached.value && typeof cached.value === "object") {
+          console.log(`[adf-competencies] ✅ Cache HIT for ${email}`);
+          return new Response(JSON.stringify(cached.value), {
+            status: 200,
+            headers: { ...headers, "Content-Type": "application/json", "X-Cache": "HIT" },
+          });
+        }
+      } catch (e) {
+        console.warn("[adf-competencies] Cache read error:", e);
+        // Continue without cache
       }
-    } catch (e) {
-      console.warn("[adf-competencies] Cache read error:", e);
-      // Continue without cache
     }
 
     let participantId: string | null = null;
@@ -596,12 +614,14 @@ serve(async (req) => {
     const responseData = { email, id_participant: participantId, adfs };
     
     // Store in cache
-    try {
-      await kv.set(cacheKey, responseData, { expireIn: CACHE_TTL_MS });
-      console.log(`[adf-competencies] 💾 Cached for ${email} (${adfs.length} ADFs, TTL: ${CACHE_TTL_MS}ms)`);
-    } catch (e) {
-      console.warn("[adf-competencies] Cache write error:", e);
-      // Continue without caching
+    if (kv) {
+      try {
+        await kv.set(cacheKey, responseData, { expireIn: CACHE_TTL_MS });
+        console.log(`[adf-competencies] 💾 Cached for ${email} (${adfs.length} ADFs, TTL: ${CACHE_TTL_MS}ms)`);
+      } catch (e) {
+        console.warn("[adf-competencies] Cache write error:", e);
+        // Continue without caching
+      }
     }
 
     return new Response(
