@@ -390,3 +390,9 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/staff/deno.json"
 entrypoint = "./functions/staff/index.ts"
+
+[functions.generate-cv]
+enabled = true
+verify_jwt = true
+import_map = "./functions/generate-cv/deno.json"
+entrypoint = "./functions/generate-cv/index.ts"
