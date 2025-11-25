@@ -53,9 +53,11 @@ serve(async (req) => {
   }
 
   try {
-    // Extract user email from JWT
+    // Extract user data from JWT (similar to get-adf function)
     let userEmail: string | null = null;
     let userPhone: string | null = null;
+    let userName: string | null = null;
+    let userFullName: string | null = null;
     
     const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
     if (authHeader && authHeader.startsWith("Bearer ")) {
@@ -65,8 +67,30 @@ serve(async (req) => {
         if (parts.length >= 2) {
           const payload = JSON.parse(atob(parts[1]));
           if (payload && typeof payload === "object") {
+            // Extract email
             userEmail = payload["email"] ?? payload["user_metadata"]?.["email"] ?? null;
+            
+            // Extract phone
             userPhone = payload["phone"] ?? payload["user_metadata"]?.["phone"] ?? null;
+            
+            // Extract name variations
+            userName = payload["user_metadata"]?.["name"] ?? 
+                      payload["user_metadata"]?.["full_name"] ?? 
+                      payload["user_metadata"]?.["first_name"] ?? null;
+            
+            userFullName = payload["user_metadata"]?.["full_name"] ?? null;
+            
+            // If we have first_name and last_name separately
+            const firstName = payload["user_metadata"]?.["first_name"];
+            const lastName = payload["user_metadata"]?.["last_name"];
+            if (firstName && lastName && !userFullName) {
+              userFullName = `${firstName} ${lastName}`;
+            }
+            
+            // Use full_name as userName if available
+            if (userFullName && !userName) {
+              userName = userFullName;
+            }
           }
         }
       } catch (_) {
@@ -98,6 +122,7 @@ serve(async (req) => {
     const prompt = `Vous êtes un rédacteur professionnel de CV. Générez un CV complet et professionnel EN FRANÇAIS pour l'utilisateur suivant.
 
 Informations de l'utilisateur :
+${userName ? `- Nom : ${userName}` : ""}
 - Email : ${userEmail}
 ${userPhone ? `- Téléphone : ${userPhone}` : ""}
 
@@ -113,15 +138,54 @@ Créez un CV professionnel avec les sections suivantes (ajustez en fonction des 
 6. CERTIFICATIONS (si mentionnées dans les instructions)
 7. INFORMATIONS COMPLÉMENTAIRES (si pertinent - langues, centres d'intérêt, etc.)
 
-IMPORTANT :
+FORMAT REQUIS - TRÈS IMPORTANT :
 - Rédigez TOUT en français
-- Utilisez des TITRES DE SECTION EN MAJUSCULES clairs
-- Utilisez des puces (•) pour les listes
-- Structurez proprement avec des espaces entre les sections
-- Soyez professionnel et précis
-- Si l'utilisateur mentionne un poste ou domaine spécifique, adaptez le résumé professionnel en conséquence
-- N'incluez PAS de placeholders comme [Votre Nom] - utilisez directement l'email fourni pour les coordonnées
-- Format: utilisez des séparateurs visuels (---) entre les sections principales`;
+- Utilisez des TITRES DE SECTION EN MAJUSCULES (ex: COORDONNÉES, EXPÉRIENCE PROFESSIONNELLE)
+- Utilisez EXACTEMENT le format suivant pour les sections :
+
+COORDONNÉES
+${userName || "[Nom complet]"}
+Email : ${userEmail}
+${userPhone ? `Téléphone : ${userPhone}` : ""}
+
+---
+
+RÉSUMÉ PROFESSIONNEL
+[Votre résumé professionnel ici]
+
+---
+
+EXPÉRIENCE PROFESSIONNELLE
+
+**[Titre du poste]**
+[Entreprise] | [Dates]
+
+• [Accomplissement ou responsabilité 1]
+• [Accomplissement ou responsabilité 2]
+• [Accomplissement ou responsabilité 3]
+
+---
+
+FORMATION
+
+**[Diplôme]**
+[Institution] | [Année]
+
+---
+
+COMPÉTENCES
+
+• [Compétence 1]
+• [Compétence 2]
+
+RÈGLES STRICTES :
+- Sections en MAJUSCULES uniquement
+- Sous-titres avec **double astérisques**
+- Puces avec • (caractère bullet point)
+- Séparateurs : --- entre sections principales
+- PAS de markdown pour les sections principales
+- Utilisez les vraies données fournies (nom, email, téléphone)
+- Soyez professionnel et précis`;
 
     // Call Mistral API
     const mistralResponse = await fetch("https://api.mistral.ai/v1/chat/completions", {
@@ -172,6 +236,8 @@ IMPORTANT :
       JSON.stringify({
         cv: generatedCV,
         userEmail,
+        userName: userName || null,
+        userPhone: userPhone || null,
         timestamp: new Date().toISOString(),
       }),
       { status: 200, headers: { ...headers, "Content-Type": "application/json" } }

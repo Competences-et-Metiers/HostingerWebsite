@@ -3,19 +3,22 @@ import { supabase } from '@/lib/customSupabaseClient';
 
 /**
  * Hook to fetch calendar sessions with caching
- * Cache key: ['calendar-sessions', adfIds]
- * Depends on adfIds array
+ * Cache key: ['calendar-sessions', participantId, adfIds]
+ * Fetches all sessions for a participant, optionally filtered by ADF IDs
  */
-export function useCalendarSessions(adfIds) {
+export function useCalendarSessions(participantId, adfIds) {
   return useQuery({
-    queryKey: ['calendar-sessions', ...(adfIds || [])],
+    queryKey: ['calendar-sessions', participantId, ...(adfIds || [])],
     queryFn: async () => {
-      if (!adfIds || adfIds.length === 0) {
+      if (!participantId) {
         return [];
       }
       
       const { data, error } = await supabase.functions.invoke('calendar', {
-        body: { adfIds },
+        body: { 
+          participantId: String(participantId),
+          adfIds: adfIds || []
+        },
       });
       
       if (error) throw error;
@@ -24,7 +27,7 @@ export function useCalendarSessions(adfIds) {
       const result = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
       return result;
     },
-    enabled: Boolean(adfIds && adfIds.length > 0),
+    enabled: Boolean(participantId),
     staleTime: 5 * 60 * 1000, // 5 minutes
     cacheTime: 10 * 60 * 1000, // 10 minutes
   });

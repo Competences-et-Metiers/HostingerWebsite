@@ -18,12 +18,11 @@ const corsHeaders = {
   "Content-Type": "application/json",
 };
 
-function buildApiUrlByParticipant(participantId: string, include: string = "formation,lcps"): string {
-  const baseUrl = "https://pro.dendreo.com/competences_et_metiers/api/creneaux.php";
+function buildApiUrl(participantId: string): string {
+  const baseUrl = "https://pro.dendreo.com/competences_et_metiers/api/taches.php";
   const apiKey = Deno.env.get("DENDREO_API_KEY") || "";
   const url = new URL(baseUrl);
   url.searchParams.set("id_participant", participantId);
-  url.searchParams.set("include", include);
   url.searchParams.set("key", apiKey);
   return url.toString();
 }
@@ -50,7 +49,6 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const qpParticipantId = url.searchParams.get("participantId") || url.searchParams.get("id_participant");
-    const qpAdfIds = url.searchParams.get("adfIds"); // comma-separated
 
     let body: any = {};
     if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") {
@@ -63,18 +61,10 @@ Deno.serve(async (req) => {
       return errorResponse(400, "Missing 'participantId' parameter");
     }
 
-    // Get ADF IDs to filter by (optional)
-    let adfIds: string[] = [];
-    if (Array.isArray(body?.adfIds)) {
-      adfIds = body.adfIds.map((v: any) => String(v));
-    } else if (typeof qpAdfIds === "string" && qpAdfIds.trim()) {
-      adfIds = qpAdfIds.split(",").map((v) => v.trim()).filter(Boolean);
-    }
+    console.log(`Fetching tasks for participant ${participantId}`);
 
-    console.log(`Fetching sessions for participant ${participantId}${adfIds.length > 0 ? ` (filtering by ADFs: ${adfIds.join(", ")})` : ""}`);
-
-    // Fetch all sessions for this participant (single API call!)
-    const apiUrl = buildApiUrlByParticipant(String(participantId));
+    // Fetch tasks for this participant
+    const apiUrl = buildApiUrl(String(participantId));
     const response = await fetch(apiUrl, { method: "GET" });
 
     if (!response.ok) {
@@ -85,38 +75,14 @@ Deno.serve(async (req) => {
 
     const data = await response.json();
     
-    // Parse response - expecting an array
-    let allSessions: any[] = [];
-    if (Array.isArray(data)) {
-      allSessions = data;
-    } else if (Array.isArray(data?.data)) {
-      allSessions = data.data;
-    } else if (Array.isArray(data?.creneaux)) {
-      allSessions = data.creneaux;
-    } else {
-      console.warn("Unexpected response format:", typeof data);
-      return new Response(JSON.stringify([]), { headers: corsHeaders });
-    }
-
-    // Filter by ADF IDs if provided
-    let filteredSessions = allSessions;
-    if (adfIds.length > 0) {
-      filteredSessions = allSessions.filter((session: any) => 
-        adfIds.includes(String(session.id_action_de_formation))
-      );
-    }
-
     // Log statistics
-    const sessionsByAdf = filteredSessions.reduce((acc: any, session: any) => {
-      const adfId = session.id_action_de_formation || 'unknown';
-      acc[adfId] = (acc[adfId] || 0) + 1;
-      return acc;
-    }, {});
+    const esignatureCount = data?.counts?.esignature || 0;
+    const taches = Array.isArray(data?.taches) ? data.taches : [];
+    const esignatures = taches.filter((t: any) => t.type === 'esignature');
+    
+    console.log(`Tasks for participant ${participantId}: ${esignatureCount} e-signatures pending, ${taches.length} total tasks`);
 
-    console.log(`Total sessions: ${allSessions.length}, Filtered: ${filteredSessions.length}`);
-    console.log(`Sessions by ADF:`, sessionsByAdf);
-
-    return new Response(JSON.stringify(filteredSessions), { headers: corsHeaders });
+    return new Response(JSON.stringify(data), { headers: corsHeaders });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return errorResponse(500, message);
@@ -128,9 +94,10 @@ Deno.serve(async (req) => {
   1. Run `supabase start` (see: https://supabase.com/docs/reference/cli/supabase-start)
   2. Make an HTTP request:
 
-  curl -i --location --request POST 'http://127.0.0.1:54321/functions/v1/calendar' \
+  curl -i --location --request POST 'http://127.0.0.1:54321/functions/v1/taches' \
     --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0' \
     --header 'Content-Type: application/json' \
-    --data '{"participantId": 27, "adfIds": ["124", "126"]}'
+    --data '{"participantId": 27}'
 
 */
+

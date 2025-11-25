@@ -13,7 +13,9 @@ const CVGeneratorPage = () => {
   const { user, session } = useAuth();
   const [additionalInstructions, setAdditionalInstructions] = useState('');
   const [generatedCV, setGeneratedCV] = useState('');
+  const [displayedCV, setDisplayedCV] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
 
   // Load CV from session storage on mount
   useEffect(() => {
@@ -22,11 +24,34 @@ const CVGeneratorPage = () => {
     
     if (savedCV) {
       setGeneratedCV(savedCV);
+      setDisplayedCV(savedCV); // Show immediately from cache, no typing effect
     }
     if (savedInstructions) {
       setAdditionalInstructions(savedInstructions);
     }
   }, []);
+
+  // Typewriter effect for newly generated CV
+  useEffect(() => {
+    if (!generatedCV || displayedCV === generatedCV) return;
+
+    setIsTyping(true);
+    let currentIndex = 0;
+    const typingSpeed = 7; // milliseconds per character (doubled speed from 15ms)
+
+    const typeInterval = setInterval(() => {
+      if (currentIndex < generatedCV.length) {
+        setDisplayedCV(generatedCV.substring(0, currentIndex + 1));
+        currentIndex++;
+      } else {
+        setIsTyping(false);
+        clearInterval(typeInterval);
+      }
+    }, typingSpeed);
+
+    return () => clearInterval(typeInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generatedCV]);
 
   const generateCV = async () => {
     if (!session) {
@@ -51,6 +76,7 @@ const CVGeneratorPage = () => {
       if (error) throw error;
 
       if (data && data.cv) {
+        setDisplayedCV(''); // Reset displayed text for typing effect
         setGeneratedCV(data.cv);
         // Save to session storage
         sessionStorage.setItem('generated_cv', data.cv);
@@ -102,6 +128,7 @@ const CVGeneratorPage = () => {
 
   const clearCV = () => {
     setGeneratedCV('');
+    setDisplayedCV('');
     sessionStorage.removeItem('generated_cv');
     sessionStorage.removeItem('cv_instructions');
     sessionStorage.removeItem('cv_timestamp');
@@ -131,7 +158,7 @@ const CVGeneratorPage = () => {
       // Section headers (ALL CAPS or starting with **)
       if (trimmedLine === trimmedLine.toUpperCase() && trimmedLine.length > 3 && /^[A-ZÀÂÄÉÈÊËÏÎÔÖÙÛÜŸÇ\s]+$/.test(trimmedLine)) {
         formattedElements.push(
-          <h3 key={`section-${currentKey++}`} className="text-xl font-bold text-purple-700 mt-6 mb-3 tracking-wide">
+          <h3 key={`section-${currentKey++}`} className="text-xl font-bold text-purple-300 mt-6 mb-3 tracking-wide">
             {trimmedLine}
           </h3>
         );
@@ -140,7 +167,7 @@ const CVGeneratorPage = () => {
       else if (trimmedLine.startsWith('**') && trimmedLine.endsWith('**')) {
         const text = trimmedLine.replace(/^\*\*|\*\*$/g, '');
         formattedElements.push(
-          <h4 key={`header-${currentKey++}`} className="text-lg font-semibold text-gray-900 mt-4 mb-2">
+          <h4 key={`header-${currentKey++}`} className="text-lg font-semibold text-white mt-4 mb-2">
             {text}
           </h4>
         );
@@ -150,21 +177,21 @@ const CVGeneratorPage = () => {
         const text = trimmedLine.replace(/^[•\-\*]\s*/, '');
         formattedElements.push(
           <div key={`bullet-${currentKey++}`} className="flex gap-3 mb-2 ml-4">
-            <span className="text-purple-600 mt-1">•</span>
-            <span className="text-gray-800 flex-1">{text}</span>
+            <span className="text-purple-300 mt-1">•</span>
+            <span className="text-white/90 flex-1">{text}</span>
           </div>
         );
       }
       // Section dividers
       else if (trimmedLine.match(/^[-=_]{3,}$/)) {
         formattedElements.push(
-          <hr key={`divider-${currentKey++}`} className="border-gray-300 my-4" />
+          <hr key={`divider-${currentKey++}`} className="border-white/20 my-4" />
         );
       }
       // Regular paragraphs
       else {
         formattedElements.push(
-          <p key={`text-${currentKey++}`} className="text-gray-800 mb-2 leading-relaxed">
+          <p key={`text-${currentKey++}`} className="text-white/90 mb-2 leading-relaxed">
             {trimmedLine}
           </p>
         );
@@ -247,12 +274,12 @@ const CVGeneratorPage = () => {
           </div>
         </div>
 
-        {generatedCV && (
+        {(generatedCV || displayedCV) && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-8 max-w-4xl mx-auto"
+            className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-8 max-w-4xl mx-auto shadow-2xl"
           >
             <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
               <h3 className="text-2xl font-semibold text-white">Votre CV Généré</h3>
@@ -286,23 +313,27 @@ const CVGeneratorPage = () => {
               </div>
             </div>
             
-            <div className="bg-white rounded-lg p-8 border border-gray-200 shadow-xl">
+            <div className="bg-white/5 backdrop-blur-sm rounded-lg p-8 border border-white/10 shadow-xl relative">
               <div className="max-w-none">
-                {formatCVForDisplay(generatedCV)}
+                {formatCVForDisplay(displayedCV)}
               </div>
+              {isTyping && (
+                <span className="inline-block w-0.5 h-5 bg-purple-300 animate-pulse ml-1"></span>
+              )}
             </div>
             
-            {/* Raw text version for debugging */}
-            <details className="mt-4">
-              <summary className="text-white/60 text-sm cursor-pointer hover:text-white/80">
-                Voir le texte brut (pour copier/coller)
-              </summary>
-              <div className="bg-white/5 rounded-lg p-4 border border-white/10 mt-2">
-                <pre className="text-white/70 whitespace-pre-wrap font-mono text-xs leading-relaxed">
-                  {generatedCV}
-                </pre>
-              </div>
-            </details>
+            {!isTyping && (
+              <details className="mt-4">
+                <summary className="text-white/60 text-sm cursor-pointer hover:text-white/80 font-medium">
+                  Voir le texte brut (pour copier/coller)
+                </summary>
+                <div className="bg-white/5 rounded-lg p-4 border border-white/10 mt-2">
+                  <pre className="text-white/70 whitespace-pre-wrap font-mono text-xs leading-relaxed">
+                    {generatedCV}
+                  </pre>
+                </div>
+              </details>
+            )}
           </motion.div>
         )}
       </motion.section>

@@ -7,15 +7,34 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAdfIds } from '@/hooks/useDendreoData';
 import { useCalendarSessions } from '@/hooks/useCalendarData';
+import { useToast } from '@/components/ui/use-toast';
 
 const CalendarPage = () => {
+  const { toast } = useToast();
+  
   // Use cached hooks
   const { data: adfData, isLoading: adfLoading, error: adfError } = useAdfIds();
   const adfIds = Array.isArray(adfData?.adf_ids) ? adfData.adf_ids.map(String) : [];
+  const participantId = adfData?.id_participant;
   const extranetCode = adfData?.extranet_code_numeric || 
     (adfData?.extranet_code ? String(adfData.extranet_code).replace(/[^0-9]/g, '') : null);
   
-  const { data: sessions = [], isLoading: loading, error } = useCalendarSessions(adfIds);
+  const { data: sessions = [], isLoading: loading, error } = useCalendarSessions(participantId, adfIds);
+
+  // Debug: Log sessions data
+  useEffect(() => {
+    if (sessions && sessions.length > 0) {
+      console.log(`CalendarPage: Received ${sessions.length} total sessions`);
+      
+      // Group by ADF to see distribution
+      const byAdf = sessions.reduce((acc, s) => {
+        const adfId = s.id_action_de_formation || 'unknown';
+        acc[adfId] = (acc[adfId] || 0) + 1;
+        return acc;
+      }, {});
+      console.log('Sessions by ADF:', byAdf);
+    }
+  }, [sessions]);
 
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [view, setView] = useState('month'); // 'day' | 'week' | 'month'
@@ -35,6 +54,33 @@ const CalendarPage = () => {
     if (!value) return null;
     // Dendreo style: "YYYY-MM-DD HH:mm:ss" -> ensure ISO-like with 'T'
     return new Date(String(value).replace(' ', 'T'));
+  };
+
+  // Color palette for different ADFs - professional and distinguishable colors
+  const ADF_COLORS = [
+    { bg: 'bg-blue-500/60', text: 'text-white', border: 'border-blue-500' },
+    { bg: 'bg-purple-500/60', text: 'text-white', border: 'border-purple-500' },
+    { bg: 'bg-emerald-500/60', text: 'text-white', border: 'border-emerald-500' },
+    { bg: 'bg-orange-500/60', text: 'text-white', border: 'border-orange-500' },
+    { bg: 'bg-pink-500/60', text: 'text-white', border: 'border-pink-500' },
+    { bg: 'bg-teal-500/60', text: 'text-white', border: 'border-teal-500' },
+    { bg: 'bg-indigo-500/60', text: 'text-white', border: 'border-indigo-500' },
+    { bg: 'bg-rose-500/60', text: 'text-white', border: 'border-rose-500' },
+  ];
+
+  // Map ADF IDs to colors consistently
+  const adfColorMap = useMemo(() => {
+    const map = new Map();
+    const uniqueAdfIds = [...new Set(sessions.map(s => s.id_action_de_formation))].sort();
+    uniqueAdfIds.forEach((adfId, index) => {
+      map.set(String(adfId), ADF_COLORS[index % ADF_COLORS.length]);
+    });
+    return map;
+  }, [sessions]);
+
+  // Get color for an ADF
+  const getAdfColor = (adfId) => {
+    return adfColorMap.get(String(adfId)) || ADF_COLORS[0];
   };
 
   const sessionsByDay = useMemo(() => {
@@ -81,18 +127,74 @@ const CalendarPage = () => {
     });
   };
 
-  const presenceColor = (presence) => {
-    if (presence === '1') return 'bg-green-500/60 text-white';
-    if (presence === '2') return 'bg-red-500/60 text-white';
-    if (presence === '' || presence === null || presence === undefined) return 'bg-blue-500/50 text-white';
-    return 'bg-gray-500/50 text-white';
+  // Get session color based on ADF, with presence indicator
+  const getSessionColor = (session) => {
+    const colors = getAdfColor(session.id_action_de_formation);
+    return `${colors.bg} ${colors.text}`;
   };
 
-  const presenceBg = (presence) => {
-    if (presence === '1') return 'bg-green-500/60';
-    if (presence === '2') return 'bg-red-500/60';
-    if (presence === '' || presence === null || presence === undefined) return 'bg-blue-500/50';
-    return 'bg-gray-500/50';
+  const getSessionBg = (session) => {
+    const colors = getAdfColor(session.id_action_de_formation);
+    return colors.bg;
+  };
+
+  // Get presence badge (for status overlay)
+  const getPresenceBadge = (presence) => {
+    if (presence === '1') return { color: 'bg-green-400', label: 'Présent' };
+    if (presence === '2') return { color: 'bg-red-400', label: 'Absent' };
+    return null;
+  };
+
+  // Handle copy to clipboard with fallback
+  const handleCopyCode = async () => {
+    if (!extranetCode) return;
+    
+    const textToCopy = String(extranetCode);
+    
+    // Try modern clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        toast({
+          title: "Code copié !",
+          description: "Le code d'accès a été copié dans le presse-papier.",
+        });
+        return;
+      } catch (err) {
+        console.error('Clipboard API failed:', err);
+      }
+    }
+    
+    // Fallback to execCommand
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = textToCopy;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      if (successful) {
+        toast({
+          title: "Code copié !",
+          description: "Le code d'accès a été copié dans le presse-papier.",
+        });
+      } else {
+        throw new Error('execCommand failed');
+      }
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+      toast({
+        variant: "destructive",
+        title: "Erreur de copie",
+        description: "Impossible de copier automatiquement. Sélectionnez le code pour le copier manuellement.",
+      });
+    }
   };
 
   const timeRange = (startStr, endStr) => {
@@ -156,23 +258,31 @@ const CalendarPage = () => {
     calendarDays.push(
       <div key={day} className={`p-2 border border-white/10 flex flex-col gap-1 relative ${isToday ? 'bg-purple-500/30' : ''}`}>
         <span className={`font-semibold ${isToday ? 'text-purple-300' : 'text-white'}`}>{day}</span>
-        {daySessions.map((s) => (
-          <button
-            key={s.id_creneau}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelected({ session: s, anchorDay: day });
-            }}
-            className="mt-1 text-left text-[11px] md:text-xs p-1 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40"
-          >
-            <div className={`block sm:hidden h-1.5 rounded-full ${presenceBg(s?.lcps?.[0]?.presence)}`} />
-            <div className={`hidden sm:block p-1 rounded ${presenceColor(s?.lcps?.[0]?.presence)}`}>
-              <div className="font-medium truncate">{s.name || 'Session'}</div>
-              <div className="opacity-90">{timeRange(s.date_debut, s.date_fin)}</div>
-            </div>
-          </button>
-        ))}
+        {daySessions.map((s) => {
+          const presenceBadge = getPresenceBadge(s?.lcps?.[0]?.presence);
+          return (
+            <button
+              key={`${s.id_action_de_formation}-${s.id_creneau}`}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelected({ session: s, anchorDay: day });
+              }}
+              className="mt-1 text-left text-[11px] md:text-xs p-1 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40"
+            >
+              <div className={`block sm:hidden h-1.5 rounded-full ${getSessionBg(s)}`}>
+                {presenceBadge && <div className={`absolute top-0 right-0 w-1.5 h-1.5 rounded-full ${presenceBadge.color}`} />}
+              </div>
+              <div className={`hidden sm:block p-1 rounded relative ${getSessionColor(s)}`}>
+                <div className="font-medium truncate">{s.name || 'Session'}</div>
+                <div className="opacity-90">{timeRange(s.date_debut, s.date_fin)}</div>
+                {presenceBadge && (
+                  <div className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${presenceBadge.color} border border-white`} title={presenceBadge.label} />
+                )}
+              </div>
+            </button>
+          );
+        })}
       </div>
     );
   }
@@ -198,6 +308,29 @@ const CalendarPage = () => {
         })()}
         
         <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
+          {/* ADF Color Legend */}
+          {!loading && sessions.length > 0 && adfColorMap.size > 1 && (
+            <div className="mb-3 flex flex-wrap items-center gap-3 text-xs">
+              <span className="text-white/60">Légende :</span>
+              {Array.from(adfColorMap.entries()).map(([adfId, colors]) => {
+                const adfTitle = adfData?.adf_titles?.[adfId] || `ADF ${adfId}`;
+                return (
+                  <div key={adfId} className="flex items-center gap-1.5">
+                    <div className={`w-3 h-3 rounded ${colors.bg} border ${colors.border}`} />
+                    <span className="text-white/80">{adfTitle}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {/* Debug info */}
+          {!loading && sessions.length > 0 && (
+            <div className="mb-3 text-xs text-white/60 flex items-center gap-3">
+              <span>{sessions.length} sessions chargées</span>
+              <span>•</span>
+              <span>{new Set(sessions.map(s => s.id_action_de_formation)).size} ADF(s)</span>
+            </div>
+          )}
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="order-1 text-center text-xl font-semibold text-white capitalize sm:order-none">{titleText}</h3>
             <div className="order-2 flex items-center justify-center gap-2 sm:order-none">
@@ -267,23 +400,31 @@ const CalendarPage = () => {
                       return (
                         <div key={idx} className={`p-2 border border-white/10 flex flex-col gap-1 relative ${isToday ? 'bg-purple-500/30' : ''}`}>
                           <span className={`font-semibold ${isToday ? 'text-purple-300' : 'text-white'}`}>{d.getDate()}</span>
-                          {daySessions.map((s) => (
-                            <button
-                              key={s.id_creneau}
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelected({ session: s, anchorDay: d.getDate() });
-                              }}
-                              className="mt-1 text-left text-[11px] md:text-xs p-1 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40"
-                            >
-                              <div className={`block sm:hidden h-1.5 rounded-full ${presenceBg(s?.lcps?.[0]?.presence)}`} />
-                              <div className={`hidden sm:block p-1 rounded ${presenceColor(s?.lcps?.[0]?.presence)}`}>
-                                <div className="font-medium truncate">{s.name || 'Session'}</div>
-                                <div className="opacity-90">{timeRange(s.date_debut, s.date_fin)}</div>
-                              </div>
-                            </button>
-                          ))}
+                          {daySessions.map((s) => {
+                            const presenceBadge = getPresenceBadge(s?.lcps?.[0]?.presence);
+                            return (
+                              <button
+                                key={`${s.id_action_de_formation}-${s.id_creneau}`}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelected({ session: s, anchorDay: d.getDate() });
+                                }}
+                                className="mt-1 text-left text-[11px] md:text-xs p-1 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40"
+                              >
+                                <div className={`block sm:hidden h-1.5 rounded-full relative ${getSessionBg(s)}`}>
+                                  {presenceBadge && <div className={`absolute top-0 right-0 w-1.5 h-1.5 rounded-full ${presenceBadge.color}`} />}
+                                </div>
+                                <div className={`hidden sm:block p-1 rounded relative ${getSessionColor(s)}`}>
+                                  <div className="font-medium truncate">{s.name || 'Session'}</div>
+                                  <div className="opacity-90">{timeRange(s.date_debut, s.date_fin)}</div>
+                                  {presenceBadge && (
+                                    <div className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${presenceBadge.color} border border-white`} title={presenceBadge.label} />
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
                       );
                     })}
@@ -299,23 +440,31 @@ const CalendarPage = () => {
                     }
                     return (
                       <div className="flex flex-col gap-2">
-                        {daySessions.map((s) => (
-                          <button
-                            key={s.id_creneau}
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelected({ session: s, anchorDay: currentDate.getDate() });
-                            }}
-                            className="w-full text-left text-sm p-2 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40"
-                          >
-                            <div className={`block sm:hidden h-2 rounded-full ${presenceBg(s?.lcps?.[0]?.presence)}`} />
-                            <div className={`hidden sm:block p-2 rounded ${presenceColor(s?.lcps?.[0]?.presence)}`}>
-                              <div className="font-medium truncate">{s.name || 'Session'}</div>
-                              <div className="opacity-90 text-[12px]">{timeRange(s.date_debut, s.date_fin)}</div>
-                            </div>
-                          </button>
-                        ))}
+                        {daySessions.map((s) => {
+                          const presenceBadge = getPresenceBadge(s?.lcps?.[0]?.presence);
+                          return (
+                            <button
+                              key={`${s.id_action_de_formation}-${s.id_creneau}`}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelected({ session: s, anchorDay: currentDate.getDate() });
+                              }}
+                              className="w-full text-left text-sm p-2 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40"
+                            >
+                              <div className={`block sm:hidden h-2 rounded-full relative ${getSessionBg(s)}`}>
+                                {presenceBadge && <div className={`absolute top-0 right-0 w-2 h-2 rounded-full ${presenceBadge.color}`} />}
+                              </div>
+                              <div className={`hidden sm:block p-2 rounded relative ${getSessionColor(s)}`}>
+                                <div className="font-medium truncate">{s.name || 'Session'}</div>
+                                <div className="opacity-90 text-[12px]">{timeRange(s.date_debut, s.date_fin)}</div>
+                                {presenceBadge && (
+                                  <div className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full ${presenceBadge.color} border border-white`} title={presenceBadge.label} />
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     );
                   })()}
@@ -354,23 +503,23 @@ const CalendarPage = () => {
                 </button>
               </div>
               <div className="mt-4 flex flex-col gap-3">
-                {extranetCode && (
-                  <div className="rounded-md bg-white/5 border border-white/10 p-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-white/70 text-xs">Votre code de connexion</div>
-                      <div className="text-white font-mono tracking-wider text-sm select-all">{extranetCode}</div>
-                    </div>
-                    <button
-                      type="button"
-                      className="text-white/70 hover:text-white p-2 rounded-md hover:bg-white/10"
-                      onClick={() => extranetCode && navigator.clipboard?.writeText?.(String(extranetCode))}
-                      aria-label="Copier le code"
-                      title="Copier le code"
-                    >
-                      <Copy className="w-5 h-5" />
-                    </button>
-                  </div>
-                )}
+                 {extranetCode && (
+                   <div className="rounded-md bg-white/5 border border-white/10 p-3 flex items-center justify-between">
+                     <div>
+                       <div className="text-white/70 text-xs">Votre code d'accès à 9 chiffres</div>
+                       <div className="text-white font-mono tracking-wider text-sm select-all">{extranetCode}</div>
+                     </div>
+                     <button
+                       type="button"
+                       className="text-white/70 hover:text-white p-2 rounded-md hover:bg-white/10 transition-colors"
+                       onClick={handleCopyCode}
+                       aria-label="Copier le code"
+                       title="Copier le code"
+                     >
+                       <Copy className="w-5 h-5" />
+                     </button>
+                   </div>
+                 )}
                 <a
                   href={selected.session?.url_connexion || '#'}
                   target="_blank"

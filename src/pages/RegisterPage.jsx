@@ -44,8 +44,12 @@ const RegisterPage = () => {
           className="w-full max-w-md bg-black/20 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl"
         >
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <span className="text-white font-bold text-3xl">BC</span>
+            <div className="flex items-center justify-center mx-auto mb-6">
+              <img 
+                src="/Logo_CM_horizontal_blanc-1.webp" 
+                alt="Logo" 
+                className="h-16 w-auto object-contain"
+              />
             </div>
             <h1 className="text-3xl font-bold text-white">Créer un compte</h1>
             <p className="text-purple-200">Rejoignez la plateforme et commencez votre parcours.</p>
