@@ -1,0 +1,50 @@
+{
+    "id_participant": "27",
+    "counts": {
+        "esignature": "1",
+        "esignature-doc": "0",
+        "satisfaction": {
+            "froid": "1",
+            "chaud": "0"
+        },
+        "auto-positionnement": {
+            "post": "0",
+            "pre": "2"
+        }
+    },
+    "taches": [
+        {
+            "type": "esignature",
+            "intitule": "Emargement électronique",
+            "id_adf": "126",
+            "id_lcp": "35813",
+            "creneau_date_debut": "2025-11-25 15:00:00",
+            "creneau_date_fin": "2025-11-25 15:05:00",
+            "url": "https://extranet.competences-et-metiers.com/participants/emargement/35813/create"
+        },
+        {
+            "type": "satisfaction",
+            "intitule": "Questionnaire de Satisfaction",
+            "questionnaire_type": "Satisfaction à Froid",
+            "id_adf": "842",
+            "id_lap": "1577",
+            "url": "https://extranet.competences-et-metiers.com/participants/r7r74emnxysx4ng2rynb/satisfaction/2/edit"
+        },
+        {
+            "type": "auto-positionnement",
+            "intitule": "Questionnaire d'Auto-positionnement",
+            "positionnement_type": "Formulaire pré-formation",
+            "id_adf": "1046",
+            "id_lap": "1960",
+            "url": "https://extranet.competences-et-metiers.com/participants/huo2flriyok4ixet2ijk/pre_formation/create"
+        },
+        {
+            "type": "auto-positionnement",
+            "intitule": "Questionnaire d'Auto-positionnement",
+            "positionnement_type": "Formulaire pré-formation",
+            "id_adf": "1047",
+            "id_lap": "1961",
+            "url": "https://extranet.competences-et-metiers.com/participants/rgh2nxkfw0q6fnwliftt/pre_formation/create"
+        }
+    ]
+}

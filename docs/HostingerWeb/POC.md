@@ -68,6 +68,10 @@ Contains few competencies cards that should display messages filled by the consu
 Since we now obtain the ADF from the connected auth user's email.
 We'll then display the planned sessions of that ADF on the calendar using all related ADF IDs.
 
+### Objectives
+
+Fillable form with check-boxes. Form is based on the PDF template
+
 ## V2 features
 ### CV Generator
 

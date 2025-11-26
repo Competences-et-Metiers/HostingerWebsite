@@ -378,3 +378,21 @@ entrypoint = "./functions/calendar/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/calendar/*.html" ]
+
+[functions.adf-consultants]
+enabled = true
+verify_jwt = true
+import_map = "./functions/adf-consultants/deno.json"
+entrypoint = "./functions/adf-consultants/index.ts"
+
+[functions.staff]
+enabled = true
+verify_jwt = true
+import_map = "./functions/staff/deno.json"
+entrypoint = "./functions/staff/index.ts"
+
+[functions.generate-cv]
+enabled = true
+verify_jwt = true
+import_map = "./functions/generate-cv/deno.json"
+entrypoint = "./functions/generate-cv/index.ts"

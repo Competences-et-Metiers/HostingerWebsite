@@ -4,10 +4,10 @@ import { Toaster } from '@/components/ui/toaster';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Layout from '@/components/Layout';
 import Dashboard from '@/components/Dashboard';
-import SkillsSection from '@/components/SkillsSection';
-import GoalsSection from '@/components/GoalsSection';
-import ProgressSection from '@/components/ProgressSection';
-import ResourcesSection from '@/components/ResourcesSection';
+import SkillsPages from '@/pages/SkillsPages';
+import GoalsPage from '@/pages/GoalsPage';
+import ProgressPage from '@/pages/ProgressPage';
+import ResourcesPage from '@/pages/ResourcesPage';
 import CalendarPage from '@/pages/CalendarPage';
 import ProfilePage from '@/pages/ProfilePage';
 import SettingsPage from '@/pages/SettingsPage';
@@ -19,6 +19,7 @@ import { useAuth } from '@/contexts/SupabaseAuthContext';
 
 function App() {
   const { session, loading } = useAuth();
+  const isDev = import.meta.env.DEV;
 
   if (loading) {
     return (
@@ -42,15 +43,17 @@ function App() {
           }
         >
           <Route index element={<Dashboard />} />
-          <Route path="skills" element={<SkillsSection />} />
-          <Route path="goals" element={<GoalsSection />} />
-          <Route path="progress" element={<ProgressSection />} />
-          <Route path="resources" element={<ResourcesSection />} />
+          <Route path="skills" element={<SkillsPages />} />
+          {/* WIP: Only available in development */}
+          {isDev && <Route path="goals" element={<GoalsPage />} />}
+          <Route path="progress" element={<ProgressPage />} />
+          <Route path="resources" element={<ResourcesPage />} />
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="cv-generator" element={<CVGeneratorPage />} />
           <Route path="consultant" element={<ConsultantPage />} />
           <Route path="profile" element={<ProfilePage />} />
-          <Route path="settings" element={<SettingsPage />} />
+          {/* WIP: Only available in development */}
+          {isDev && <Route path="settings" element={<SettingsPage />} />}
           <Route path="*" element={<Navigate to="/" />} />
         </Route>
       </Routes>

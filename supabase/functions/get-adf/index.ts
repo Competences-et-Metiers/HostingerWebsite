@@ -7,7 +7,7 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
-const ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:5173", "https://yourapp.com"]; // adjust
+const ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "https://yourapp.com"]; // adjust
 
 function corsHeaders(origin: string | null) {
   const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : "*";
@@ -32,6 +32,17 @@ async function readJsonSafe(res: Response): Promise<unknown> {
     return null;
   }
 }
+
+// Open Deno KV for caching
+let kv: Deno.Kv | null = null;
+try {
+  kv = await Deno.openKv();
+  console.log("[get-adf] Deno KV initialized successfully");
+} catch (e) {
+  console.warn("[get-adf] Failed to initialize Deno KV:", e);
+  // Continue without caching
+}
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 serve(async (req) => {
   const origin = req.headers.get("origin");
@@ -87,6 +98,24 @@ serve(async (req) => {
       });
     }
 
+    // Try to get from cache
+    const cacheKey = ["get-adf", email];
+    if (kv) {
+      try {
+        const cached = await kv.get(cacheKey);
+        if (cached.value && typeof cached.value === "object") {
+          console.log(`[get-adf] ✅ Cache HIT for ${email}`);
+          return new Response(JSON.stringify(cached.value), {
+            status: 200,
+            headers: { ...headers, "Content-Type": "application/json", "X-Cache": "HIT" },
+          });
+        }
+      } catch (e) {
+        console.warn("[get-adf] Cache read error:", e);
+        // Continue without cache
+      }
+    }
+
     // Prefer env var; fallback to constant provided in request if env missing
     const envKey = Deno.env.get("DENDREO_API_KEY");
     const apiKey = envKey && envKey.trim().length > 0 ? envKey : "";
@@ -136,6 +165,7 @@ serve(async (req) => {
     // 2) laps by participant
     const lapsUrl = new URL("https://pro.dendreo.com/competences_et_metiers/api/laps.php");
     lapsUrl.searchParams.set("id_participant", participantId);
+    lapsUrl.searchParams.set("include", "action_de_formation");
     lapsUrl.searchParams.set("key", apiKey);
 
     const ctrl2 = new AbortController();
@@ -154,6 +184,7 @@ serve(async (req) => {
     const lapIdSet = new Set<string>();
     const adfToLapIds = new Map<string, Set<string>>();
     const adfTitles = new Map<string, string>();
+    const adfResponsables = new Map<string, string>();
 
     const normalizeId = (value: unknown): string | null => {
       if (typeof value === "string" && value.trim()) return value.trim();
@@ -167,6 +198,7 @@ serve(async (req) => {
       const nestedId = formation ? normalizeId(formation["id_action_de_formation"]) : null;
       const categoryId = formation ? normalizeId(formation["categorie_module_id"]) : null;
       const adfTitleRaw = formation ? (formation as Record<string, unknown>)["intitule"] as unknown : undefined;
+      const idResponsableRaw = formation ? (formation as Record<string, unknown>)["id_responsable"] as unknown : undefined;
       const adfTitle = typeof adfTitleRaw === "string" && adfTitleRaw.trim() ? adfTitleRaw.trim() : null;
       const lapId = normalizeId((obj as Record<string, unknown>)["id_lap"]) || normalizeId((obj as Record<string, unknown>)["id"]) || null;
       return { adfId: topLevelId || nestedId, categoryId, lapId, adfTitle };
@@ -183,6 +215,8 @@ serve(async (req) => {
           adfToLapIds.get(adfId)!.add(lapId);
         }
         if (adfTitle && !adfTitles.has(adfId)) adfTitles.set(adfId, adfTitle);
+        const idRes = typeof idResponsableRaw === "string" && idResponsableRaw.trim() ? idResponsableRaw.trim() : (typeof idResponsableRaw === "number" && Number.isFinite(idResponsableRaw) ? String(idResponsableRaw) : null);
+        if (idRes && !adfResponsables.has(adfId)) adfResponsables.set(adfId, idRes);
       }
     };
 
@@ -202,10 +236,61 @@ serve(async (req) => {
     const lap_ids = Array.from(lapIdSet);
     const adf_to_lap_ids = Object.fromEntries(Array.from(adfToLapIds.entries()).map(([k, v]) => [k, Array.from(v.values())]));
     const adf_titles = Object.fromEntries(Array.from(adfTitles.entries()));
+    // Ensure id_responsable is filled by querying actions_de_formation when missing
+    if (adf_ids.length > 0) {
+      const fetchOne = async (adfId: string) => {
+        // Skip if we already have a responsable for this ADF
+        if (adfResponsables.has(adfId)) return null;
+        const u = new URL("https://pro.dendreo.com/competences_et_metiers/api/actions_de_formation.php");
+        u.searchParams.set("id", adfId);
+        u.searchParams.set("key", apiKey);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15_000);
+        try {
+          const res = await fetch(u.toString(), { method: "GET", signal: controller.signal });
+          const body = await readJsonSafe(res);
+          if (!res.ok) return null;
+          const raw = body && typeof body === "object" ? (body as Record<string, unknown>)["id_responsable"] as unknown : null;
+          const idRes = typeof raw === "string" && raw.trim() ? raw.trim() : (typeof raw === "number" && Number.isFinite(raw) ? String(raw) : null);
+          if (idRes) adfResponsables.set(adfId, idRes);
+          return null;
+        } catch (_) {
+          return null;
+        } finally {
+          clearTimeout(timeout);
+        }
+      };
+      await Promise.all(adf_ids.map(fetchOne));
+    }
+    const adf_responsables = Object.fromEntries(Array.from(adfResponsables.entries()));
     const extranet_code_numeric = extranetCode ? extranetCode.replace(/\D/g, "") : null;
+    
+    const responseData = { 
+      email, 
+      id_participant: participantId, 
+      adf_ids, 
+      lap_ids, 
+      adf_to_lap_ids, 
+      adf_titles, 
+      adf_responsables, 
+      extranet_code: extranetCode, 
+      extranet_code_numeric 
+    };
+    
+    // Store in cache
+    if (kv) {
+      try {
+        await kv.set(cacheKey, responseData, { expireIn: CACHE_TTL_MS });
+        console.log(`[get-adf] 💾 Cached for ${email} (TTL: ${CACHE_TTL_MS}ms)`);
+      } catch (e) {
+        console.warn("[get-adf] Cache write error:", e);
+        // Continue without caching
+      }
+    }
+    
     return new Response(
-      JSON.stringify({ email, id_participant: participantId, adf_ids, lap_ids, adf_to_lap_ids, adf_titles, extranet_code: extranetCode, extranet_code_numeric }),
-      { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+      JSON.stringify(responseData),
+      { status: 200, headers: { ...headers, "Content-Type": "application/json", "X-Cache": "MISS" } }
     );
   } catch (err) {
     const msg = err instanceof Error && err.name === "AbortError"

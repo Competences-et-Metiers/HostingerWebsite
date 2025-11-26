@@ -1,15 +1,17 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { LayoutDashboard, Star, Target, TrendingUp, BookOpen, Settings, LogOut, Calendar, FileText, UserSquare } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { LayoutDashboard, Star, Target, TrendingUp, BookOpen, Settings, LogOut, Calendar, FileText, UserSquare, PanelLeft, X } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 
-const menuItems = [
+const isDev = import.meta.env.DEV;
+
+const allMenuItems = [
   { icon: LayoutDashboard, label: "Tableau de bord", path: "/" },
   { icon: Star, label: "Compétences", path: "/skills" },
-  { icon: Target, label: "Objectifs", path: "/goals" },
+  { icon: Target, label: "Objectifs", path: "/goals", devOnly: true }, // WIP
   { icon: TrendingUp, label: "Progrès", path: "/progress" },
   { icon: BookOpen, label: "Ressources", path: "/resources" },
   { icon: Calendar, label: "Calendrier", path: "/calendar" },
@@ -17,7 +19,10 @@ const menuItems = [
   { icon: UserSquare, label: "Mon Consultant", path: "/consultant" },
 ];
 
-const NavItem = ({ icon: Icon, label, path, delay }) => {
+// Filter menu items based on environment
+const menuItems = allMenuItems.filter(item => !item.devOnly || isDev);
+
+const NavItem = ({ icon: Icon, label, path, delay, onClose, isOpen }) => {
   return (
     <motion.div
       initial={{ opacity: 0, x: -20 }}
@@ -27,20 +32,26 @@ const NavItem = ({ icon: Icon, label, path, delay }) => {
       <NavLink
         to={path}
         end={path === "/"}
+        onClick={() => {
+          const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+          if (isMobile && typeof onClose === 'function') {
+            onClose();
+          }
+        }}
         className={({ isActive }) =>
-          `w-full justify-start text-white/80 hover:text-white hover:bg-white/10 py-4 px-4 flex items-center rounded-lg transition-colors ${
+          `${isOpen ? 'w-full justify-start px-3' : 'h-10 w-10 justify-center'} text-white/80 hover:text-white hover:bg-white/10 h-10 flex items-center rounded-md transition-colors ${
             isActive ? 'bg-white/10 text-white' : ''
           }`
         }
       >
-        <Icon className="h-5 w-5 mr-4" />
-        <span className="text-sm font-medium">{label}</span>
+        <Icon className={`h-5 w-5 ${isOpen ? 'mr-3' : ''}`} />
+        {isOpen && <span className="text-sm font-medium truncate">{label}</span>}
       </NavLink>
     </motion.div>
   );
 };
 
-const SideMenu = () => {
+const SideMenu = ({ isOpen, onClose, onToggle }) => {
   const { signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -51,61 +62,85 @@ const SideMenu = () => {
       title: "Déconnexion",
       description: "Vous avez été déconnecté avec succès.",
     });
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    if (isMobile && typeof onClose === 'function') {
+      onClose();
+    }
+  };
+
+  const handleSettings = () => {
+    navigate('/settings');
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    if (isMobile && typeof onClose === 'function') {
+      onClose();
+    }
   };
 
   return (
     <motion.aside
-      initial={{ x: '-100%' }}
-      animate={{ x: 0 }}
-      transition={{ duration: 0.7, ease: [0.6, 0.01, -0.05, 0.9] }}
-      className="w-72 bg-black/20 backdrop-blur-xl border-r border-white/10 flex flex-col justify-between p-4"
+      initial={{ width: 56 }}
+      animate={{ width: isOpen ? 288 : 56 }}
+      transition={{ duration: 0.25, ease: [0.4, 0.01, -0.05, 0.9] }}
+      className="fixed inset-y-0 left-0 z-50 bg-black/40 backdrop-blur-xl border-r border-white/10 flex flex-col justify-between py-4"
     >
-      <div>
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="flex items-center space-x-3 p-4 mb-8"
-        >
-          <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-bold text-lg">BC</span>
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-white whitespace-nowrap">Bilan de Compétences</h1>
-            <p className="text-purple-200 text-xs">Mon Parcours</p>
-          </div>
-        </motion.div>
-
-        <nav className="space-y-2">
+      <div className={`flex flex-col ${isOpen ? 'px-2' : 'items-center px-2'}`}>
+        <div className={`mb-2 ${isOpen ? 'w-full' : ''}`}>
+          <Button
+            variant="ghost"
+            size={isOpen ? 'default' : 'icon'}
+            onClick={onToggle}
+            title={isOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+            className={`text-white/80 hover:text-white hover:bg-white/10 ${isOpen ? 'h-10 w-full justify-start px-3 rounded-md' : ''}`}
+          >
+            {isOpen ? (
+              <>
+                <X className="h-5 w-5 mr-3" />
+                <span className="text-sm font-medium">Fermer le menu</span>
+              </>
+            ) : (
+              <PanelLeft className="h-5 w-5" />
+            )}
+          </Button>
+        </div>
+        <nav className="flex flex-col gap-1">
           {menuItems.map((item, index) => (
-            <NavItem key={item.label} icon={item.icon} label={item.label} path={item.path} delay={0.4 + index * 0.08} />
+            <NavItem
+              key={item.label}
+              icon={item.icon}
+              label={item.label}
+              path={item.path}
+              delay={0.1 + index * 0.04}
+              onClose={onClose}
+              isOpen={isOpen}
+            />
           ))}
         </nav>
       </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 1 }}
-        className="space-y-2"
-      >
+      <div className={`flex flex-col gap-1 px-2 ${isOpen ? '' : 'items-center'}`}>
+        {/* WIP: Settings only available in development */}
+        {isDev && (
+          <Button
+            variant="ghost"
+            size={isOpen ? 'default' : 'icon'}
+            onClick={handleSettings}
+            title="Paramètres"
+            className={`${isOpen ? 'h-10 w-full justify-start px-3' : 'h-10 w-10 justify-center'} text-white/80 hover:text-white hover:bg-white/10 rounded-md`}
+          >
+            <Settings className={`h-5 w-5 ${isOpen ? 'mr-3' : ''}`} />
+            {isOpen && <span className="text-sm font-medium truncate">Paramètres</span>}
+          </Button>
+        )}
         <Button
           variant="ghost"
-          onClick={() => navigate('/settings')}
-          className="w-full justify-start text-white/80 hover:text-white hover:bg-white/10 py-4"
-        >
-          <Settings className="h-5 w-5 mr-4" />
-          <span className="text-sm font-medium">Paramètres</span>
-        </Button>
-        <Button
-          variant="ghost"
+          size={isOpen ? 'default' : 'icon'}
           onClick={handleLogout}
-          className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/10 py-4"
+          title="Déconnexion"
+          className={`${isOpen ? 'h-10 w-full justify-start px-3' : 'h-10 w-10 justify-center'} text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-md`}
         >
-          <LogOut className="h-5 w-5 mr-4" />
-          <span className="text-sm font-medium">Déconnexion</span>
+          <LogOut className={`h-5 w-5 ${isOpen ? 'mr-3' : ''}`} />
+          {isOpen && <span className="text-sm font-medium truncate">Déconnexion</span>}
         </Button>
-      </motion.div>
+      </div>
     </motion.aside>
   );
 };

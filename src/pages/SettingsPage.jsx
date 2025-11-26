@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
+import { useOutletContext } from 'react-router-dom';
 
 const SettingsPage = () => {
   const { toast } = useToast();
@@ -26,7 +27,13 @@ const SettingsPage = () => {
         transition={{ duration: 0.5 }}
         className="space-y-8 max-w-2xl mx-auto"
       >
-        <h2 className="text-3xl font-bold text-white mb-2">Paramètres</h2>
+        {(() => {
+          const { setHeader } = useOutletContext() || {};
+          useEffect(() => {
+            setHeader && setHeader('Paramètres', '');
+          }, [setHeader]);
+          return null;
+        })()}
         
         <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-8 space-y-6">
           <div className="flex justify-between items-center">

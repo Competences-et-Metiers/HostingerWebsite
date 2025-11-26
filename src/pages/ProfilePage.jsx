@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
@@ -70,7 +71,13 @@ const ProfilePage = () => {
         transition={{ duration: 0.5 }}
         className="space-y-8 max-w-2xl mx-auto"
       >
-        <h2 className="text-3xl font-bold text-white mb-2">Mon Profil</h2>
+        {(() => {
+          const { setHeader } = useOutletContext() || {};
+          useEffect(() => {
+            setHeader && setHeader('Mon Profil', '');
+          }, [setHeader]);
+          return null;
+        })()}
         
         <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-8">
           <form onSubmit={handleUpdateProfile} className="space-y-6">

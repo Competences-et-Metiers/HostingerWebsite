@@ -210,9 +210,8 @@ export default defineConfig({
 	],
 	server: {
 		cors: true,
-		headers: {
-			'Cross-Origin-Embedder-Policy': 'credentialless',
-		},
+		// COEP can block third-party iframes (e.g., HubSpot). Make it opt-in via env.
+		headers: process.env.ENABLE_COEP ? { 'Cross-Origin-Embedder-Policy': 'credentialless' } : {},
 		allowedHosts: true,
 	},
 	resolve: {

@@ -1,23 +1,45 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/customSupabaseClient';
-import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useAdfIds } from '@/hooks/useDendreoData';
+import { useCalendarSessions } from '@/hooks/useCalendarData';
+import { useToast } from '@/components/ui/use-toast';
 
 const CalendarPage = () => {
-  const { loading: authLoading } = useAuth();
-  const [adfIds, setAdfIds] = useState([]);
-  const [adfError, setAdfError] = useState(null);
+  const { toast } = useToast();
+  
+  // Use cached hooks
+  const { data: adfData, isLoading: adfLoading, error: adfError } = useAdfIds();
+  const adfIds = Array.isArray(adfData?.adf_ids) ? adfData.adf_ids.map(String) : [];
+  const participantId = adfData?.id_participant;
+  const extranetCode = adfData?.extranet_code_numeric || 
+    (adfData?.extranet_code ? String(adfData.extranet_code).replace(/[^0-9]/g, '') : null);
+  
+  const { data: sessions = [], isLoading: loading, error } = useCalendarSessions(participantId, adfIds);
+
+  // Debug: Log sessions data
+  useEffect(() => {
+    if (sessions && sessions.length > 0) {
+      console.log(`CalendarPage: Received ${sessions.length} total sessions`);
+      
+      // Group by ADF to see distribution
+      const byAdf = sessions.reduce((acc, s) => {
+        const adfId = s.id_action_de_formation || 'unknown';
+        acc[adfId] = (acc[adfId] || 0) + 1;
+        return acc;
+      }, {});
+      console.log('Sessions by ADF:', byAdf);
+    }
+  }, [sessions]);
 
   const [currentDate, setCurrentDate] = useState(() => new Date());
-  const [sessions, setSessions] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [view, setView] = useState('month'); // 'day' | 'week' | 'month'
   const [selected, setSelected] = useState(null); // currently selected session for popover
   const popoverRef = useRef(null);
-  const [extranetCode, setExtranetCode] = useState(null);
 
   const monthName = currentDate.toLocaleString('fr-FR', { month: 'long' });
   const year = currentDate.getFullYear();
@@ -34,58 +56,32 @@ const CalendarPage = () => {
     return new Date(String(value).replace(' ', 'T'));
   };
 
-  // Load ADF IDs from get-adf function (requires authenticated user)
-  useEffect(() => {
-    let isMounted = true;
-    const loadAdfIds = async () => {
-      if (authLoading) return; // wait for auth readiness
-      setAdfError(null);
-      try {
-        const { data, error } = await supabase.functions.invoke('get-adf', { method: 'GET' });
-        if (error) throw error;
-        const ids = Array.isArray(data?.adf_ids) ? data.adf_ids.map(String) : [];
-        const codeNumeric = data?.extranet_code_numeric ?? null;
-        const codeFormatted = data?.extranet_code ? String(data.extranet_code).replace(/[^0-9]/g, '') : null;
-        const finalCode = codeNumeric || codeFormatted || null;
-        if (isMounted) setAdfIds(ids);
-        if (isMounted) setExtranetCode(finalCode);
-      } catch (err) {
-        if (isMounted) setAdfError(err?.message || 'Erreur lors de la récupération des ADF');
-      }
-    };
-    loadAdfIds();
-    return () => { isMounted = false; };
-  }, [authLoading]);
+  // Color palette for different ADFs - professional and distinguishable colors
+  const ADF_COLORS = [
+    { bg: 'bg-blue-500/60', text: 'text-white', border: 'border-blue-500' },
+    { bg: 'bg-purple-500/60', text: 'text-white', border: 'border-purple-500' },
+    { bg: 'bg-emerald-500/60', text: 'text-white', border: 'border-emerald-500' },
+    { bg: 'bg-orange-500/60', text: 'text-white', border: 'border-orange-500' },
+    { bg: 'bg-pink-500/60', text: 'text-white', border: 'border-pink-500' },
+    { bg: 'bg-teal-500/60', text: 'text-white', border: 'border-teal-500' },
+    { bg: 'bg-indigo-500/60', text: 'text-white', border: 'border-indigo-500' },
+    { bg: 'bg-rose-500/60', text: 'text-white', border: 'border-rose-500' },
+  ];
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchSessions = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const { data, error } = await supabase.functions.invoke('calendar', {
-          body: { adfIds },
-        });
-        if (error) throw error;
-        if (!isMounted) return;
-        // Expecting array; if wrapped, try to unwrap
-        const result = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
-        setSessions(result);
-      } catch (err) {
-        if (!isMounted) return;
-        setError(err?.message || 'Erreur lors du chargement du calendrier');
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-    if (adfIds && adfIds.length > 0) {
-      fetchSessions();
-    } else {
-      // if no ADFs, clear sessions
-      setSessions([]);
-    }
-    return () => { isMounted = false; };
-  }, [adfIds.join(',')]);
+  // Map ADF IDs to colors consistently
+  const adfColorMap = useMemo(() => {
+    const map = new Map();
+    const uniqueAdfIds = [...new Set(sessions.map(s => s.id_action_de_formation))].sort();
+    uniqueAdfIds.forEach((adfId, index) => {
+      map.set(String(adfId), ADF_COLORS[index % ADF_COLORS.length]);
+    });
+    return map;
+  }, [sessions]);
+
+  // Get color for an ADF
+  const getAdfColor = (adfId) => {
+    return adfColorMap.get(String(adfId)) || ADF_COLORS[0];
+  };
 
   const sessionsByDay = useMemo(() => {
     const map = new Map();
@@ -109,19 +105,96 @@ const CalendarPage = () => {
     return map;
   }, [sessions, currentDate]);
 
-  const nextMonth = () => {
-    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  const addDays = (date, numDays) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + numDays);
+    return d;
   };
 
-  const prevMonth = () => {
-    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  const nextByView = () => {
+    setCurrentDate((prev) => {
+      if (view === 'day') return addDays(prev, 1);
+      if (view === 'week') return addDays(prev, 7);
+      return new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
+    });
   };
 
-  const presenceColor = (presence) => {
-    if (presence === '1') return 'bg-green-500/60 text-white';
-    if (presence === '2') return 'bg-red-500/60 text-white';
-    if (presence === '' || presence === null || presence === undefined) return 'bg-blue-500/50 text-white';
-    return 'bg-gray-500/50 text-white';
+  const prevByView = () => {
+    setCurrentDate((prev) => {
+      if (view === 'day') return addDays(prev, -1);
+      if (view === 'week') return addDays(prev, -7);
+      return new Date(prev.getFullYear(), prev.getMonth() - 1, 1);
+    });
+  };
+
+  // Get session color based on ADF, with presence indicator
+  const getSessionColor = (session) => {
+    const colors = getAdfColor(session.id_action_de_formation);
+    return `${colors.bg} ${colors.text}`;
+  };
+
+  const getSessionBg = (session) => {
+    const colors = getAdfColor(session.id_action_de_formation);
+    return colors.bg;
+  };
+
+  // Get presence badge (for status overlay)
+  const getPresenceBadge = (presence) => {
+    if (presence === '1') return { color: 'bg-green-400', label: 'Présent' };
+    if (presence === '2') return { color: 'bg-red-400', label: 'Absent' };
+    return null;
+  };
+
+  // Handle copy to clipboard with fallback
+  const handleCopyCode = async () => {
+    if (!extranetCode) return;
+    
+    const textToCopy = String(extranetCode);
+    
+    // Try modern clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        toast({
+          title: "Code copié !",
+          description: "Le code d'accès a été copié dans le presse-papier.",
+        });
+        return;
+      } catch (err) {
+        console.error('Clipboard API failed:', err);
+      }
+    }
+    
+    // Fallback to execCommand
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = textToCopy;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      if (successful) {
+        toast({
+          title: "Code copié !",
+          description: "Le code d'accès a été copié dans le presse-papier.",
+        });
+      } else {
+        throw new Error('execCommand failed');
+      }
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+      toast({
+        variant: "destructive",
+        title: "Erreur de copie",
+        description: "Impossible de copier automatiquement. Sélectionnez le code pour le copier manuellement.",
+      });
+    }
   };
 
   const timeRange = (startStr, endStr) => {
@@ -132,6 +205,50 @@ const CalendarPage = () => {
     return `${start.toLocaleTimeString('fr-FR', fmt)}–${end.toLocaleTimeString('fr-FR', fmt)}`;
   };
 
+  const getSessionsForDate = (date) => {
+    const result = [];
+    for (const session of sessions || []) {
+      const start = parseDendreoDate(session.date_debut);
+      if (!start) continue;
+      if (isSameDay(start, date)) result.push(session);
+    }
+    result.sort((a, b) => {
+      const sa = parseDendreoDate(a.date_debut)?.getTime() ?? 0;
+      const sb = parseDendreoDate(b.date_debut)?.getTime() ?? 0;
+      return sa - sb;
+    });
+    return result;
+  };
+
+  const startOfWeek = useMemo(() => {
+    const d = new Date(currentDate);
+    d.setHours(0, 0, 0, 0);
+    // Week starts on Sunday to match headers [Dim..Sam] alignment with getDay()
+    d.setDate(d.getDate() - d.getDay());
+    return d;
+  }, [currentDate]);
+
+  const weekDates = useMemo(() => {
+    const base = new Date(startOfWeek);
+    return Array.from({ length: 7 }, (_, i) => new Date(base.getFullYear(), base.getMonth(), base.getDate() + i));
+  }, [startOfWeek]);
+
+  const titleText = useMemo(() => {
+    if (view === 'day') {
+      return currentDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
+    if (view === 'week') {
+      const start = weekDates[0];
+      const end = weekDates[6];
+      const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+      if (sameMonth) {
+        return `${start.toLocaleDateString('fr-FR', { day: 'numeric' })}–${end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+      }
+      return `${start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })} – ${end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+    }
+    return `${monthName} ${year}`;
+  }, [view, currentDate, weekDates, monthName, year]);
+
   const calendarDays = Array.from({ length: firstDayOfMonth }, (_, i) => <div key={`empty-${i}`} className="border border-white/10"></div>);
 
   for (let day = 1; day <= daysInMonth; day++) {
@@ -141,20 +258,31 @@ const CalendarPage = () => {
     calendarDays.push(
       <div key={day} className={`p-2 border border-white/10 flex flex-col gap-1 relative ${isToday ? 'bg-purple-500/30' : ''}`}>
         <span className={`font-semibold ${isToday ? 'text-purple-300' : 'text-white'}`}>{day}</span>
-        {daySessions.map((s) => (
-          <button
-            key={s.id_creneau}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelected({ session: s, anchorDay: day });
-            }}
-            className={`mt-1 text-left text-[11px] md:text-xs p-1 rounded ${presenceColor(s?.lcps?.[0]?.presence)} hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40`}
-          >
-            <div className="font-medium truncate">{s.name || 'Session'}</div>
-            <div className="opacity-90">{timeRange(s.date_debut, s.date_fin)}</div>
-          </button>
-        ))}
+        {daySessions.map((s) => {
+          const presenceBadge = getPresenceBadge(s?.lcps?.[0]?.presence);
+          return (
+            <button
+              key={`${s.id_action_de_formation}-${s.id_creneau}`}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelected({ session: s, anchorDay: day });
+              }}
+              className="mt-1 text-left text-[11px] md:text-xs p-1 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40"
+            >
+              <div className={`block sm:hidden h-1.5 rounded-full ${getSessionBg(s)}`}>
+                {presenceBadge && <div className={`absolute top-0 right-0 w-1.5 h-1.5 rounded-full ${presenceBadge.color}`} />}
+              </div>
+              <div className={`hidden sm:block p-1 rounded relative ${getSessionColor(s)}`}>
+                <div className="font-medium truncate">{s.name || 'Session'}</div>
+                <div className="opacity-90">{timeRange(s.date_debut, s.date_fin)}</div>
+                {presenceBadge && (
+                  <div className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${presenceBadge.color} border border-white`} title={presenceBadge.label} />
+                )}
+              </div>
+            </button>
+          );
+        })}
       </div>
     );
   }
@@ -171,27 +299,180 @@ const CalendarPage = () => {
         transition={{ duration: 0.5 }}
         className="space-y-8"
       >
-        <h2 className="text-3xl font-bold text-white mb-2">Calendrier</h2>
+        {(() => {
+          const { setHeader } = useOutletContext() || {};
+          useEffect(() => {
+            setHeader && setHeader('Calendrier', '');
+          }, [setHeader]);
+          return null;
+        })()}
         
         <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <Button onClick={prevMonth} variant="ghost" size="icon" className="text-white hover:bg-white/20">
-              <ChevronLeft />
-            </Button>
-            <h3 className="text-xl font-semibold text-white capitalize">{monthName} {year}</h3>
-            <Button onClick={nextMonth} variant="ghost" size="icon" className="text-white hover:bg-white/20">
-              <ChevronRight />
-            </Button>
+          {/* ADF Color Legend */}
+          {!loading && sessions.length > 0 && adfColorMap.size > 1 && (
+            <div className="mb-3 flex flex-wrap items-center gap-3 text-xs">
+              <span className="text-white/60">Légende :</span>
+              {Array.from(adfColorMap.entries()).map(([adfId, colors]) => {
+                const adfTitle = adfData?.adf_titles?.[adfId] || `ADF ${adfId}`;
+                return (
+                  <div key={adfId} className="flex items-center gap-1.5">
+                    <div className={`w-3 h-3 rounded ${colors.bg} border ${colors.border}`} />
+                    <span className="text-white/80">{adfTitle}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {/* Debug info */}
+          {!loading && sessions.length > 0 && (
+            <div className="mb-3 text-xs text-white/60 flex items-center gap-3">
+              <span>{sessions.length} sessions chargées</span>
+              <span>•</span>
+              <span>{new Set(sessions.map(s => s.id_action_de_formation)).size} ADF(s)</span>
+            </div>
+          )}
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="order-1 text-center text-xl font-semibold text-white capitalize sm:order-none">{titleText}</h3>
+            <div className="order-2 flex items-center justify-center gap-2 sm:order-none">
+              <Button onClick={prevByView} variant="ghost" size="icon" className="text-white hover:bg-white/20" aria-label="Précédent">
+                <ChevronLeft />
+              </Button>
+              <div className="inline-flex items-center rounded-md bg-white/10 p-1">
+                <button
+                  type="button"
+                  onClick={() => setView('day')}
+                  aria-pressed={view === 'day'}
+                  className={`px-2 py-1 text-xs font-medium rounded ${view === 'day' ? 'bg-purple-600 text-white shadow' : 'text-white/80 hover:bg-white/10'}`}
+                >
+                  Jour
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView('week')}
+                  aria-pressed={view === 'week'}
+                  className={`px-2 py-1 text-xs font-medium rounded ${view === 'week' ? 'bg-purple-600 text-white shadow' : 'text-white/80 hover:bg-white/10'}`}
+                >
+                  Semaine
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView('month')}
+                  aria-pressed={view === 'month'}
+                  className={`px-2 py-1 text-xs font-medium rounded ${view === 'month' ? 'bg-purple-600 text-white shadow' : 'text-white/80 hover:bg-white/10'}`}
+                >
+                  Mois
+                </button>
+              </div>
+              <Button onClick={nextByView} variant="ghost" size="icon" className="text-white hover:bg-white/20" aria-label="Suivant">
+                <ChevronRight />
+              </Button>
+            </div>
           </div>
-          {loading && <div className="text-white/70 mb-2 text-sm">Chargement des sessions…</div>}
+          {(loading || adfLoading) && (
+            <Skeleton className="h-[60vh] w-full rounded-md" />
+          )}
           {error && <div className="text-red-300 mb-2 text-sm">{error}</div>}
-          <div className="grid grid-cols-7 text-center text-white/70 mb-2">
-            {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map(day => <div key={day}>{day}</div>)}
-          </div>
-          <div className="grid grid-cols-7 h-[60vh]">
-            {calendarDays}
-          </div>
-          {(adfError || (!loading && adfIds.length === 0)) && (
+          {!(adfLoading || loading) && (
+            <>
+              {view === 'month' && (
+                <>
+                  <div className="grid grid-cols-7 text-center text-white/70 mb-2">
+                    {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map(day => <div key={day}>{day}</div>)}
+                  </div>
+                  <div className="grid grid-cols-7 h-[60vh]">
+                    {calendarDays}
+                  </div>
+                </>
+              )}
+              {view === 'week' && (
+                <>
+                  <div className="grid grid-cols-7 text-center text-white/70 mb-2">
+                    {weekDates.map((d, idx) => (
+                      <div key={idx} className="capitalize">
+                        {d.toLocaleDateString('fr-FR', { weekday: 'short' })} {d.getDate()}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 h-[40vh]">
+                    {weekDates.map((d, idx) => {
+                      const isToday = isSameDay(d, today);
+                      const daySessions = getSessionsForDate(d);
+                      return (
+                        <div key={idx} className={`p-2 border border-white/10 flex flex-col gap-1 relative ${isToday ? 'bg-purple-500/30' : ''}`}>
+                          <span className={`font-semibold ${isToday ? 'text-purple-300' : 'text-white'}`}>{d.getDate()}</span>
+                          {daySessions.map((s) => {
+                            const presenceBadge = getPresenceBadge(s?.lcps?.[0]?.presence);
+                            return (
+                              <button
+                                key={`${s.id_action_de_formation}-${s.id_creneau}`}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelected({ session: s, anchorDay: d.getDate() });
+                                }}
+                                className="mt-1 text-left text-[11px] md:text-xs p-1 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40"
+                              >
+                                <div className={`block sm:hidden h-1.5 rounded-full relative ${getSessionBg(s)}`}>
+                                  {presenceBadge && <div className={`absolute top-0 right-0 w-1.5 h-1.5 rounded-full ${presenceBadge.color}`} />}
+                                </div>
+                                <div className={`hidden sm:block p-1 rounded relative ${getSessionColor(s)}`}>
+                                  <div className="font-medium truncate">{s.name || 'Session'}</div>
+                                  <div className="opacity-90">{timeRange(s.date_debut, s.date_fin)}</div>
+                                  {presenceBadge && (
+                                    <div className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${presenceBadge.color} border border-white`} title={presenceBadge.label} />
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+              {view === 'day' && (
+                <div className="h-[40vh] overflow-auto border border-white/10 rounded-md p-3">
+                  {(() => {
+                    const daySessions = getSessionsForDate(currentDate);
+                    if (!daySessions.length) {
+                      return <div className="text-white/60 text-sm">Aucune session pour ce jour.</div>;
+                    }
+                    return (
+                      <div className="flex flex-col gap-2">
+                        {daySessions.map((s) => {
+                          const presenceBadge = getPresenceBadge(s?.lcps?.[0]?.presence);
+                          return (
+                            <button
+                              key={`${s.id_action_de_formation}-${s.id_creneau}`}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelected({ session: s, anchorDay: currentDate.getDate() });
+                              }}
+                              className="w-full text-left text-sm p-2 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40"
+                            >
+                              <div className={`block sm:hidden h-2 rounded-full relative ${getSessionBg(s)}`}>
+                                {presenceBadge && <div className={`absolute top-0 right-0 w-2 h-2 rounded-full ${presenceBadge.color}`} />}
+                              </div>
+                              <div className={`hidden sm:block p-2 rounded relative ${getSessionColor(s)}`}>
+                                <div className="font-medium truncate">{s.name || 'Session'}</div>
+                                <div className="opacity-90 text-[12px]">{timeRange(s.date_debut, s.date_fin)}</div>
+                                {presenceBadge && (
+                                  <div className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full ${presenceBadge.color} border border-white`} title={presenceBadge.label} />
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </>
+          )}
+          {(!adfLoading && (adfError || (!loading && adfIds.length === 0))) && (
             <div className="text-white/60 text-sm mt-2">
               {adfError ? adfError : "Aucune ADF trouvée pour l'utilisateur."}
             </div>
@@ -222,23 +503,23 @@ const CalendarPage = () => {
                 </button>
               </div>
               <div className="mt-4 flex flex-col gap-3">
-                {extranetCode && (
-                  <div className="rounded-md bg-white/5 border border-white/10 p-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-white/70 text-xs">Votre code de connexion</div>
-                      <div className="text-white font-mono tracking-wider text-sm select-all">{extranetCode}</div>
-                    </div>
-                    <button
-                      type="button"
-                      className="text-white/70 hover:text-white p-2 rounded-md hover:bg-white/10"
-                      onClick={() => extranetCode && navigator.clipboard?.writeText?.(String(extranetCode))}
-                      aria-label="Copier le code"
-                      title="Copier le code"
-                    >
-                      <Copy className="w-5 h-5" />
-                    </button>
-                  </div>
-                )}
+                 {extranetCode && (
+                   <div className="rounded-md bg-white/5 border border-white/10 p-3 flex items-center justify-between">
+                     <div>
+                       <div className="text-white/70 text-xs">Votre code d'accès à 9 chiffres</div>
+                       <div className="text-white font-mono tracking-wider text-sm select-all">{extranetCode}</div>
+                     </div>
+                     <button
+                       type="button"
+                       className="text-white/70 hover:text-white p-2 rounded-md hover:bg-white/10 transition-colors"
+                       onClick={handleCopyCode}
+                       aria-label="Copier le code"
+                       title="Copier le code"
+                     >
+                       <Copy className="w-5 h-5" />
+                     </button>
+                   </div>
+                 )}
                 <a
                   href={selected.session?.url_connexion || '#'}
                   target="_blank"
