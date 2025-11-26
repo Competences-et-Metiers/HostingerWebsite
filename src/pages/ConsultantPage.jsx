@@ -9,9 +9,12 @@ import { formatFrenchPhoneNumber } from '@/lib/dendreo';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAdfIds } from '@/hooks/useDendreoData';
 import { useConsultants, useStaff } from '@/hooks/useConsultantData';
+import ErrorState from '@/components/ErrorState';
+import { useQueryClient } from '@tanstack/react-query';
 
 const ConsultantPage = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   // Use cached hooks
   const { data: adfData, isLoading: adfLoading, error: adfError } = useAdfIds();
@@ -29,6 +32,12 @@ const ConsultantPage = () => {
   
   const loading = adfLoading || consultantsLoading || staffLoading;
   const error = adfError || consultantsError;
+  
+  const handleRetry = () => {
+    queryClient.invalidateQueries({ queryKey: ['adf-ids'] });
+    queryClient.invalidateQueries({ queryKey: ['consultants'] });
+    queryClient.invalidateQueries({ queryKey: ['staff'] });
+  };
   const meetingsRef = useRef(null);
   const [embedReady, setEmbedReady] = useState(false);
   const [isFramed, setIsFramed] = useState(false);
@@ -65,13 +74,6 @@ const ConsultantPage = () => {
     return `tel:${e164}`;
   };
 
-  // Show error toast if there's an error
-  useEffect(() => {
-    if (error) {
-      const msg = error?.message || 'Erreur lors du chargement des consultants';
-      toast({ variant: 'destructive', title: 'Erreur', description: msg });
-    }
-  }, [error, toast]);
 
   // Load HubSpot Meetings embed script once
   useEffect(() => {
@@ -151,7 +153,13 @@ const ConsultantPage = () => {
           return null;
         })()}
 
-        {loading && (
+        {error ? (
+          <ErrorState
+            title="Erreur de chargement"
+            message={error?.message || "Impossible de charger les informations de votre consultant. Veuillez réessayer."}
+            onRetry={handleRetry}
+          />
+        ) : loading ? (
           <div className="grid gap-6">
             {Array.from({ length: 1 }).map((_, idx) => (
               <div key={idx} className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-8 flex flex-col md:flex-row items-center gap-8">
@@ -170,13 +178,7 @@ const ConsultantPage = () => {
               </div>
             ))}
           </div>
-        )}
-
-        {!loading && error && (
-          <div className="text-red-300">{error}</div>
-        )}
-
-        {!loading && !error && consultants.length === 0 && null}
+        ) : consultants.length === 0 ? null : null}
 
         {!loading && !error && consultants.length > 0 && (
           <div className="grid gap-6">

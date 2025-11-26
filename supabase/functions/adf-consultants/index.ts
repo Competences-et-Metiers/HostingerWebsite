@@ -3,6 +3,7 @@
 // For given ADF IDs, fetch Dendreo laps and aggregate unique consultants (formateurs)
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { normalizeToArray, readJsonSafe as sharedReadJsonSafe } from "../_shared/dendreo-utils.ts";
 
 const ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "https://yourapp.com"]; // adjust
 
@@ -144,13 +145,16 @@ serve(async (req) => {
           }
         };
 
-        if (Array.isArray(body)) {
-          for (const item of body) if (item && typeof item === "object") pushFromObj(item as Record<string, unknown>);
-        } else if (body && typeof body === "object") {
-          // Some responses are wrapped under "lafs"
-          const lafs = (body as Record<string, unknown>)["lafs"] as unknown;
-          if (Array.isArray(lafs)) for (const it of lafs) if (it && typeof it === "object") pushFromObj(it as Record<string, unknown>);
-          else pushFromObj(body as Record<string, unknown>);
+        // Normalize to array - handles single laf, array, or wrapped in "lafs"
+        const lafsArray = normalizeToArray(body, {
+          idProperty: 'id_laf',
+          wrapperProperties: ['lafs', 'data']
+        });
+        
+        for (const item of lafsArray) {
+          if (item && typeof item === "object") {
+            pushFromObj(item as Record<string, unknown>);
+          }
         }
 
         perAdf[adfId] = Array.from(consultantsMap.values());

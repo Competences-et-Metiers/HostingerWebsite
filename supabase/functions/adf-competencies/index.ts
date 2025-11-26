@@ -3,6 +3,7 @@
 // Resolve participant for current user and return competencies grouped by ADF with evaluations info
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { normalizeToArray, readJsonSafe as sharedReadJsonSafe } from "../_shared/dendreo-utils.ts";
 
 const ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "https://yourapp.com"]; // adjust
 
@@ -419,8 +420,15 @@ serve(async (req) => {
       }
 
       const participantsData = await readJsonSafe(resParticipants);
-      if (Array.isArray(participantsData) && participantsData.length > 0) {
-        const first = participantsData[0] as Record<string, unknown>;
+      
+      // Normalize to array - handles both single participant and array
+      const participantsArray = normalizeToArray(participantsData, {
+        idProperty: 'id_participant',
+        wrapperProperties: ['data', 'participants']
+      });
+      
+      if (participantsArray.length > 0) {
+        const first = participantsArray[0] as Record<string, unknown>;
         const raw = first?.["id_participant"] as unknown;
         const resolved = normalizeId(raw);
         if (resolved) participantId = resolved;
@@ -489,12 +497,16 @@ serve(async (req) => {
       }
     };
 
-    if (Array.isArray(lapsData)) {
-      for (const item of lapsData) if (item && typeof item === "object") processItem(item as Record<string, unknown>);
-    } else if (lapsData && typeof lapsData === "object") {
-      processItem(lapsData as Record<string, unknown>);
-      const nested = (lapsData as Record<string, unknown>)["laps"] as unknown;
-      if (Array.isArray(nested)) for (const it of nested) if (it && typeof it === "object") processItem(it as Record<string, unknown>);
+    // Normalize laps data to array - handles single lap or multiple laps
+    const lapsArray = normalizeToArray(lapsData, {
+      idProperty: 'id_lap',
+      wrapperProperties: ['data', 'laps']
+    });
+    
+    for (const item of lapsArray) {
+      if (item && typeof item === "object") {
+        processItem(item as Record<string, unknown>);
+      }
     }
 
     // Ensure all allowed ADFs are in the map (if we have a filter)

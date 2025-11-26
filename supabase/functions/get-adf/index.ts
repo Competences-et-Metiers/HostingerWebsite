@@ -6,6 +6,7 @@
 // Returns a list of unique ADF IDs (id_action_de_formation)
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { normalizeToArray, readJsonSafe as sharedReadJsonSafe } from "../_shared/dendreo-utils.ts";
 
 const ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "https://yourapp.com"]; // adjust
 
@@ -138,20 +139,22 @@ serve(async (req) => {
     }
 
     const participantsData = await readJsonSafe(resParticipants);
+    
+    // Normalize to array - handles both single participant object and array
+    const participantsArray = normalizeToArray(participantsData, {
+      idProperty: 'id_participant',
+      wrapperProperties: ['data', 'participants']
+    });
+    
     let participantId: string | null = null;
     let extranetCode: string | null = null;
-    if (Array.isArray(participantsData) && participantsData.length > 0) {
-      const first = participantsData[0] as Record<string, unknown>;
+    
+    if (participantsArray.length > 0) {
+      const first = participantsArray[0] as Record<string, unknown>;
       const raw = first?.["id_participant"] as unknown;
       if (typeof raw === "string" && raw.trim()) participantId = raw.trim();
       if (typeof raw === "number" && Number.isFinite(raw)) participantId = String(raw);
       const codeRaw = first?.["extranet_code"] as unknown;
-      if (typeof codeRaw === "string" && codeRaw.trim()) extranetCode = codeRaw.trim();
-    } else if (participantsData && typeof participantsData === "object") {
-      const raw = (participantsData as Record<string, unknown>)["id_participant"] as unknown;
-      if (typeof raw === "string" && raw.trim()) participantId = raw.trim();
-      if (typeof raw === "number" && Number.isFinite(raw)) participantId = String(raw);
-      const codeRaw = (participantsData as Record<string, unknown>)["extranet_code"] as unknown;
       if (typeof codeRaw === "string" && codeRaw.trim()) extranetCode = codeRaw.trim();
     }
 
@@ -180,6 +183,13 @@ serve(async (req) => {
     }
 
     const lapsData = await readJsonSafe(resLaps);
+    
+    // Normalize laps data to array - handles single lap or multiple laps
+    const lapsArray = normalizeToArray(lapsData, {
+      idProperty: 'id_lap',
+      wrapperProperties: ['data', 'laps']
+    });
+    
     const adfIdSet = new Set<string>();
     const lapIdSet = new Set<string>();
     const adfToLapIds = new Map<string, Set<string>>();
@@ -220,15 +230,10 @@ serve(async (req) => {
       }
     };
 
-    if (Array.isArray(lapsData)) {
-      for (const item of lapsData) {
-        if (item && typeof item === "object") considerItem(item as Record<string, unknown>);
-      }
-    } else if (lapsData && typeof lapsData === "object") {
-      considerItem(lapsData as Record<string, unknown>);
-      const items = (lapsData as Record<string, unknown>)["laps"] as unknown;
-      if (Array.isArray(items)) {
-        for (const it of items) if (it && typeof it === "object") considerItem(it as Record<string, unknown>);
+    // Process all laps using the normalized array
+    for (const item of lapsArray) {
+      if (item && typeof item === "object") {
+        considerItem(item as Record<string, unknown>);
       }
     }
 

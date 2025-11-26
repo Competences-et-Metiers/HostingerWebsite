@@ -7,27 +7,30 @@ import { toast } from '@/components/ui/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAdfIds } from '@/hooks/useDendreoData';
 import { useResourceGroups } from '@/hooks/useResourcesData';
+import ErrorState from '@/components/ErrorState';
+import { useQueryClient } from '@tanstack/react-query';
 
 const ResourcesPage = () => {
+  const queryClient = useQueryClient();
+  
   // Use cached hooks
-  const { data: adfData, isLoading: adfLoading } = useAdfIds();
-  const { groups, isLoading: filesLoading, error } = useResourceGroups(adfData);
+  const { data: adfData, isLoading: adfLoading, error: adfError } = useAdfIds();
+  const { groups, isLoading: filesLoading, error: resourceError } = useResourceGroups(adfData);
   
   const loading = adfLoading || filesLoading;
+  const error = adfError || resourceError;
+  
+  const handleRetry = () => {
+    queryClient.invalidateQueries({ queryKey: ['adf-ids'] });
+    queryClient.invalidateQueries({ queryKey: ['resource-groups'] });
+  };
   
   // Show toast if no resources found
   useEffect(() => {
-    if (!loading && groups.length === 0 && adfData?.adf_ids?.length > 0) {
+    if (!loading && !error && groups.length === 0 && adfData?.adf_ids?.length > 0) {
       toast({ title: 'Aucune ressource', description: "Aucun fichier partagé n'a été trouvé pour vos formations." });
     }
-  }, [loading, groups.length, adfData, toast]);
-  
-  // Show error toast
-  useEffect(() => {
-    if (error) {
-      toast({ variant: 'destructive', title: 'Erreur de chargement', description: error?.message || 'Une erreur est survenue.' });
-    }
-  }, [error, toast]);
+  }, [loading, error, groups.length, adfData, toast]);
 
   const handleOpen = (url) => {
     if (!url) return;
@@ -44,11 +47,17 @@ const ResourcesPage = () => {
         return null;
       })()}
 
-      {groups.length === 0 && !loading && (
-        <div className="text-white/70">Aucun fichier partagé disponible pour le moment.</div>
-      )}
-
-      {loading && (
+      {error ? (
+        <ErrorState
+          title="Erreur de chargement des ressources"
+          message={error?.message || "Impossible de charger vos ressources. Veuillez réessayer."}
+          onRetry={handleRetry}
+        />
+      ) : groups.length === 0 && !loading ? (
+        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20 text-center">
+          <p className="text-white/70">Aucun fichier partagé disponible pour le moment.</p>
+        </div>
+      ) : loading ? (
         <div className="space-y-8">
           {Array.from({ length: 2 }).map((_, gi) => (
             <div key={gi} className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
@@ -70,10 +79,11 @@ const ResourcesPage = () => {
             </div>
           ))}
         </div>
-      )}
+      ) : null}
 
-      <div className="space-y-8">
-        {groups.map((group, index) => (
+      {!error && !loading && groups.length > 0 && (
+        <div className="space-y-8">
+          {groups.map((group, index) => (
           <motion.div
             key={group.adfId}
             initial={{ opacity: 0, y: 20 }}
@@ -107,8 +117,9 @@ const ResourcesPage = () => {
               ))}
             </div>
           </motion.div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 };

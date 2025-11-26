@@ -4,6 +4,7 @@
 
 // Setup type definitions for built-in Supabase Runtime APIs
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { normalizeToArray } from "../_shared/dendreo-utils.ts";
 // Local ambient declaration to satisfy TypeScript/linters in non-Deno tooling
 declare const Deno: {
   env: { get: (key: string) => string | undefined };
@@ -63,15 +64,7 @@ Deno.serve(async (req) => {
       return errorResponse(400, "Missing 'participantId' parameter");
     }
 
-    // Get ADF IDs to filter by (optional)
-    let adfIds: string[] = [];
-    if (Array.isArray(body?.adfIds)) {
-      adfIds = body.adfIds.map((v: any) => String(v));
-    } else if (typeof qpAdfIds === "string" && qpAdfIds.trim()) {
-      adfIds = qpAdfIds.split(",").map((v) => v.trim()).filter(Boolean);
-    }
-
-    console.log(`Fetching sessions for participant ${participantId}${adfIds.length > 0 ? ` (filtering by ADFs: ${adfIds.join(", ")})` : ""}`);
+    console.log(`Fetching ALL sessions for participant ${participantId}`);
 
     // Fetch all sessions for this participant (single API call!)
     const apiUrl = buildApiUrlByParticipant(String(participantId));
@@ -85,38 +78,26 @@ Deno.serve(async (req) => {
 
     const data = await response.json();
     
-    // Parse response - expecting an array
-    let allSessions: any[] = [];
-    if (Array.isArray(data)) {
-      allSessions = data;
-    } else if (Array.isArray(data?.data)) {
-      allSessions = data.data;
-    } else if (Array.isArray(data?.creneaux)) {
-      allSessions = data.creneaux;
-    } else {
-      console.warn("Unexpected response format:", typeof data);
-      return new Response(JSON.stringify([]), { headers: corsHeaders });
-    }
+    // Parse response - handles both arrays and single objects robustly
+    const allSessions = normalizeToArray(data, {
+      idProperty: 'id_creneau',
+      wrapperProperties: ['data', 'creneaux']
+    });
+    
+    console.log(`API returned ${Array.isArray(data) ? 'array' : 'object'} format, normalized to ${allSessions.length} session(s)`);
 
-    // Filter by ADF IDs if provided
-    let filteredSessions = allSessions;
-    if (adfIds.length > 0) {
-      filteredSessions = allSessions.filter((session: any) => 
-        adfIds.includes(String(session.id_action_de_formation))
-      );
-    }
-
-    // Log statistics
-    const sessionsByAdf = filteredSessions.reduce((acc: any, session: any) => {
+    // Log statistics - show all ADFs, not filtered
+    const sessionsByAdf = allSessions.reduce((acc: any, session: any) => {
       const adfId = session.id_action_de_formation || 'unknown';
       acc[adfId] = (acc[adfId] || 0) + 1;
       return acc;
     }, {});
 
-    console.log(`Total sessions: ${allSessions.length}, Filtered: ${filteredSessions.length}`);
+    console.log(`Total sessions returned: ${allSessions.length}`);
     console.log(`Sessions by ADF:`, sessionsByAdf);
 
-    return new Response(JSON.stringify(filteredSessions), { headers: corsHeaders });
+    // Return ALL sessions for the participant (no ADF filtering)
+    return new Response(JSON.stringify(allSessions), { headers: corsHeaders });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return errorResponse(500, message);

@@ -87,7 +87,7 @@ serve(async (req) => {
               userFullName = `${firstName} ${lastName}`;
             }
             
-       :     // Use full_name as userName if available
+            // Use full_name as userName if available
             if (userFullName && !userName) {
               userName = userFullName;
             }

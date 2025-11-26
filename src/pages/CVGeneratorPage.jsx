@@ -7,6 +7,7 @@ import { useOutletContext } from 'react-router-dom';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { Loader2, FileText, Copy } from 'lucide-react';
+import ErrorState from '@/components/ErrorState';
 
 const CVGeneratorPage = () => {
   const { toast } = useToast();

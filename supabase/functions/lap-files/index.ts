@@ -4,6 +4,7 @@
 // GET fichiers.php?cible=lap&id_cible=[LAP_ID]&collection_name=partage_lap&key=...
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { normalizeToArray, readJsonSafe } from "../_shared/dendreo-utils.ts";
 
 const ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "https://yourapp.com"]; // adjust
 
@@ -16,18 +17,6 @@ function corsHeaders(origin: string | null) {
     "Access-Control-Allow-Credentials": "true",
     "Vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
   } as Record<string, string>;
-}
-
-async function readJsonSafe(res: Response): Promise<unknown> {
-  const contentType = res.headers.get("content-type") ?? "";
-  const isJson = contentType.includes("application/json");
-  if (isJson) return await res.json().catch(() => null);
-  try {
-    const txt = await res.text();
-    return JSON.parse(txt);
-  } catch {
-    return null;
-  }
 }
 
 serve(async (req) => {
@@ -119,12 +108,12 @@ serve(async (req) => {
     for (const r of results) {
       perLap[r.lap_id] = r.body;
       if (r.ok && r.body) {
-        if (Array.isArray(r.body)) {
-          for (const f of r.body) allFiles.push(f);
-        } else if (typeof r.body === "object") {
-          const files = (r.body as Record<string, unknown>)["fichiers"] as unknown;
-          if (Array.isArray(files)) for (const f of files) allFiles.push(f);
-        }
+        // Use normalizeToArray to handle both single files and arrays
+        const files = normalizeToArray(r.body, {
+          idProperty: 'id',
+          wrapperProperties: ['fichiers', 'files']
+        });
+        for (const f of files) allFiles.push(f);
       }
     }
 

@@ -3,12 +3,12 @@ import { supabase } from '@/lib/customSupabaseClient';
 
 /**
  * Hook to fetch calendar sessions with caching
- * Cache key: ['calendar-sessions', participantId, adfIds]
- * Fetches all sessions for a participant, optionally filtered by ADF IDs
+ * Cache key: ['calendar-sessions', participantId]
+ * Fetches ALL sessions for a participant (no ADF filtering)
  */
-export function useCalendarSessions(participantId, adfIds) {
+export function useCalendarSessions(participantId) {
   return useQuery({
-    queryKey: ['calendar-sessions', participantId, ...(adfIds || [])],
+    queryKey: ['calendar-sessions', participantId],
     queryFn: async () => {
       if (!participantId) {
         return [];
@@ -16,8 +16,7 @@ export function useCalendarSessions(participantId, adfIds) {
       
       const { data, error } = await supabase.functions.invoke('calendar', {
         body: { 
-          participantId: String(participantId),
-          adfIds: adfIds || []
+          participantId: String(participantId)
         },
       });
       

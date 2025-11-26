@@ -4,31 +4,44 @@ import { motion } from 'framer-motion';
 import { TrendingUp, Target, BookOpen, Award, Calendar as CalendarIcon, Clock, FileSignature, Copy, ExternalLink } from 'lucide-react';
 import StatsCard from '@/components/StatsCard';
 import { Helmet } from 'react-helmet';
-import { useAdfIds, useMultipleAdfMetrics, useAdfMetrics } from '@/hooks/useDendreoData';
+import { useAdfIds, useMultipleAdfMetrics } from '@/hooks/useDendreoData';
 import { useCalendarSessions } from '@/hooks/useCalendarData';
 import { useParticipantTaches } from '@/hooks/useTachesData';
 import { useToast } from '@/components/ui/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import ErrorState from '@/components/ErrorState';
+import { useQueryClient } from '@tanstack/react-query';
 
 const Dashboard = () => {
   const [displayedProgress, setDisplayedProgress] = useState(0);
   const [selectedSession, setSelectedSession] = useState(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   // Use cached hooks
-  const { data: adfData } = useAdfIds();
+  const { data: adfData, error: adfError } = useAdfIds();
   const adfIds = Array.isArray(adfData?.adf_ids) ? adfData.adf_ids.map(String) : [];
   const adfTitles = adfData?.adf_titles || {};
   const participantId = adfData?.id_participant;
   const extranetCode = adfData?.extranet_code_numeric || 
     (adfData?.extranet_code ? String(adfData.extranet_code).replace(/[^0-9]/g, '') : null);
-  const { data: allMetrics } = useMultipleAdfMetrics(adfIds);
+  const { data: allMetrics, error: metricsError } = useMultipleAdfMetrics(adfIds);
   
-  // Fetch calendar sessions with caching
-  const { data: sessions = [], isLoading: sessionsLoading } = useCalendarSessions(participantId, adfIds);
+  // Fetch calendar sessions with caching (all sessions, not filtered by ADF)
+  const { data: sessions = [], isLoading: sessionsLoading, error: sessionsError } = useCalendarSessions(participantId);
   
   // Fetch participant tasks (e-signatures, etc.)
-  const { data: tachesData, isLoading: tachesLoading } = useParticipantTaches(participantId);
+  const { data: tachesData, isLoading: tachesLoading, error: tachesError } = useParticipantTaches(participantId);
+  
+  // Aggregate errors - only show critical errors that prevent dashboard from functioning
+  const criticalError = adfError;
+  
+  const handleRetry = () => {
+    queryClient.invalidateQueries({ queryKey: ['adf-ids'] });
+    queryClient.invalidateQueries({ queryKey: ['adf-metrics'] });
+    queryClient.invalidateQueries({ queryKey: ['calendar-sessions'] });
+    queryClient.invalidateQueries({ queryKey: ['participant-taches'] });
+  };
   
   // Extract e-signatures
   const pendingEsignatures = useMemo(() => {
@@ -42,11 +55,22 @@ const Dashboard = () => {
       });
   }, [tachesData]);
   
-  // Get metrics for first ADF (447) for the main stats
-  const { data: mainAdfData } = useAdfMetrics('447');
-  const spentHours = mainAdfData?.spent_hours ?? null;
-  const remainingHours = mainAdfData?.remaining_hours ?? null;
-  const totalHours = mainAdfData?.total_hours ?? null;
+  // Calculate aggregate hours from all ADFs
+  const { spentHours, remainingHours, totalHours } = useMemo(() => {
+    if (!allMetrics || allMetrics.length === 0) {
+      return { spentHours: null, remainingHours: null, totalHours: null };
+    }
+    
+    const spent = allMetrics.reduce((sum, m) => sum + (Number(m.spent_hours) || 0), 0);
+    const total = allMetrics.reduce((sum, m) => sum + (Number(m.total_hours) || 0), 0);
+    const remaining = Math.max(0, total - spent);
+    
+    return {
+      spentHours: spent,
+      remainingHours: remaining,
+      totalHours: total
+    };
+  }, [allMetrics]);
 
   const formatHours = (value) => {
     if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -251,7 +275,14 @@ const Dashboard = () => {
         <title>Tableau de Bord</title>
       </Helmet>
       <section className="space-y-8">
-
+      {criticalError ? (
+        <ErrorState
+          title="Erreur de chargement du tableau de bord"
+          message={criticalError?.message || "Impossible de charger vos données. Veuillez réessayer."}
+          onRetry={handleRetry}
+        />
+      ) : (
+        <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, index) => (
           <motion.div
@@ -524,6 +555,8 @@ const Dashboard = () => {
             </div>
           </motion.div>
         </div>
+      )}
+      </>
       )}
       </section>
     </>

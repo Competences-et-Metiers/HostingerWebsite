@@ -8,18 +8,28 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAdfIds } from '@/hooks/useDendreoData';
 import { useCalendarSessions } from '@/hooks/useCalendarData';
 import { useToast } from '@/components/ui/use-toast';
+import ErrorState from '@/components/ErrorState';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import { useQueryClient } from '@tanstack/react-query';
 
 const CalendarPage = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   // Use cached hooks
   const { data: adfData, isLoading: adfLoading, error: adfError } = useAdfIds();
-  const adfIds = Array.isArray(adfData?.adf_ids) ? adfData.adf_ids.map(String) : [];
   const participantId = adfData?.id_participant;
   const extranetCode = adfData?.extranet_code_numeric || 
     (adfData?.extranet_code ? String(adfData.extranet_code).replace(/[^0-9]/g, '') : null);
   
-  const { data: sessions = [], isLoading: loading, error } = useCalendarSessions(participantId, adfIds);
+  // Fetch ALL sessions for participant (no ADF filtering)
+  const { data: sessions = [], isLoading: loading, error: calendarError } = useCalendarSessions(participantId);
+  const error = adfError || calendarError;
+  
+  const handleRetry = () => {
+    queryClient.invalidateQueries({ queryKey: ['adf-ids'] });
+    queryClient.invalidateQueries({ queryKey: ['calendar-sessions'] });
+  };
 
   // Debug: Log sessions data
   useEffect(() => {
@@ -84,25 +94,39 @@ const CalendarPage = () => {
   };
 
   const sessionsByDay = useMemo(() => {
-    const map = new Map();
-    for (const session of sessions || []) {
-      const start = parseDendreoDate(session.date_debut);
-      if (!start) continue;
-      if (start.getMonth() !== currentDate.getMonth() || start.getFullYear() !== currentDate.getFullYear()) continue;
-      const day = start.getDate();
-      if (!map.has(day)) map.set(day, []);
-      map.get(day).push(session);
+    try {
+      const map = new Map();
+      for (const session of sessions || []) {
+        try {
+          const start = parseDendreoDate(session?.date_debut);
+          if (!start) continue;
+          if (start.getMonth() !== currentDate.getMonth() || start.getFullYear() !== currentDate.getFullYear()) continue;
+          const day = start.getDate();
+          if (!map.has(day)) map.set(day, []);
+          map.get(day).push(session);
+        } catch (err) {
+          console.error('Error processing session:', session, err);
+          continue;
+        }
+      }
+      // Sort sessions for each day by start time to better visualize overlaps
+      for (const [day, list] of map.entries()) {
+        try {
+          list.sort((a, b) => {
+            const sa = parseDendreoDate(a?.date_debut)?.getTime() ?? 0;
+            const sb = parseDendreoDate(b?.date_debut)?.getTime() ?? 0;
+            return sa - sb;
+          });
+          map.set(day, list);
+        } catch (err) {
+          console.error('Error sorting sessions for day:', day, err);
+        }
+      }
+      return map;
+    } catch (err) {
+      console.error('Error building sessionsByDay:', err);
+      return new Map();
     }
-    // Sort sessions for each day by start time to better visualize overlaps
-    for (const [day, list] of map.entries()) {
-      list.sort((a, b) => {
-        const sa = parseDendreoDate(a.date_debut)?.getTime() ?? 0;
-        const sb = parseDendreoDate(b.date_debut)?.getTime() ?? 0;
-        return sa - sb;
-      });
-      map.set(day, list);
-    }
-    return map;
   }, [sessions, currentDate]);
 
   const addDays = (date, numDays) => {
@@ -129,20 +153,37 @@ const CalendarPage = () => {
 
   // Get session color based on ADF, with presence indicator
   const getSessionColor = (session) => {
-    const colors = getAdfColor(session.id_action_de_formation);
-    return `${colors.bg} ${colors.text}`;
+    try {
+      if (!session) return 'bg-gray-500/60 text-white';
+      const colors = getAdfColor(session.id_action_de_formation);
+      return `${colors.bg} ${colors.text}`;
+    } catch (err) {
+      console.error('Error getting session color:', err);
+      return 'bg-gray-500/60 text-white';
+    }
   };
 
   const getSessionBg = (session) => {
-    const colors = getAdfColor(session.id_action_de_formation);
-    return colors.bg;
+    try {
+      if (!session) return 'bg-gray-500/60';
+      const colors = getAdfColor(session.id_action_de_formation);
+      return colors.bg;
+    } catch (err) {
+      console.error('Error getting session bg:', err);
+      return 'bg-gray-500/60';
+    }
   };
 
   // Get presence badge (for status overlay)
   const getPresenceBadge = (presence) => {
-    if (presence === '1') return { color: 'bg-green-400', label: 'Présent' };
-    if (presence === '2') return { color: 'bg-red-400', label: 'Absent' };
-    return null;
+    try {
+      if (presence === '1') return { color: 'bg-green-400', label: 'Présent' };
+      if (presence === '2') return { color: 'bg-red-400', label: 'Absent' };
+      return null;
+    } catch (err) {
+      console.error('Error getting presence badge:', err);
+      return null;
+    }
   };
 
   // Handle copy to clipboard with fallback
@@ -198,11 +239,16 @@ const CalendarPage = () => {
   };
 
   const timeRange = (startStr, endStr) => {
-    const start = parseDendreoDate(startStr);
-    const end = parseDendreoDate(endStr);
-    if (!start || !end) return '';
-    const fmt = { hour: '2-digit', minute: '2-digit' };
-    return `${start.toLocaleTimeString('fr-FR', fmt)}–${end.toLocaleTimeString('fr-FR', fmt)}`;
+    try {
+      const start = parseDendreoDate(startStr);
+      const end = parseDendreoDate(endStr);
+      if (!start || !end) return '';
+      const fmt = { hour: '2-digit', minute: '2-digit' };
+      return `${start.toLocaleTimeString('fr-FR', fmt)}–${end.toLocaleTimeString('fr-FR', fmt)}`;
+    } catch (err) {
+      console.error('Error formatting time range:', err);
+      return '';
+    }
   };
 
   const getSessionsForDate = (date) => {
@@ -234,58 +280,82 @@ const CalendarPage = () => {
   }, [startOfWeek]);
 
   const titleText = useMemo(() => {
-    if (view === 'day') {
-      return currentDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    }
-    if (view === 'week') {
-      const start = weekDates[0];
-      const end = weekDates[6];
-      const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
-      if (sameMonth) {
-        return `${start.toLocaleDateString('fr-FR', { day: 'numeric' })}–${end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+    try {
+      if (view === 'day') {
+        return currentDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
       }
-      return `${start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })} – ${end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+      if (view === 'week') {
+        const start = weekDates[0];
+        const end = weekDates[6];
+        const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+        if (sameMonth) {
+          return `${start.toLocaleDateString('fr-FR', { day: 'numeric' })}–${end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+        }
+        return `${start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })} – ${end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+      }
+      return `${monthName} ${year}`;
+    } catch (err) {
+      console.error('Error computing titleText:', err);
+      return 'Calendrier';
     }
-    return `${monthName} ${year}`;
   }, [view, currentDate, weekDates, monthName, year]);
 
-  const calendarDays = Array.from({ length: firstDayOfMonth }, (_, i) => <div key={`empty-${i}`} className="border border-white/10"></div>);
+  const calendarDays = useMemo(() => {
+    if (error || loading || adfLoading) {
+      return [];
+    }
+    
+    try {
+      const days = Array.from({ length: firstDayOfMonth }, (_, i) => (
+        <div key={`empty-${i}`} className="border border-white/10"></div>
+      ));
 
-  for (let day = 1; day <= daysInMonth; day++) {
-    const cellDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-    const isToday = isSameDay(cellDate, today);
-    const daySessions = sessionsByDay.get(day) || [];
-    calendarDays.push(
-      <div key={day} className={`p-2 border border-white/10 flex flex-col gap-1 relative ${isToday ? 'bg-purple-500/30' : ''}`}>
-        <span className={`font-semibold ${isToday ? 'text-purple-300' : 'text-white'}`}>{day}</span>
-        {daySessions.map((s) => {
-          const presenceBadge = getPresenceBadge(s?.lcps?.[0]?.presence);
-          return (
-            <button
-              key={`${s.id_action_de_formation}-${s.id_creneau}`}
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelected({ session: s, anchorDay: day });
-              }}
-              className="mt-1 text-left text-[11px] md:text-xs p-1 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40"
-            >
-              <div className={`block sm:hidden h-1.5 rounded-full ${getSessionBg(s)}`}>
-                {presenceBadge && <div className={`absolute top-0 right-0 w-1.5 h-1.5 rounded-full ${presenceBadge.color}`} />}
-              </div>
-              <div className={`hidden sm:block p-1 rounded relative ${getSessionColor(s)}`}>
-                <div className="font-medium truncate">{s.name || 'Session'}</div>
-                <div className="opacity-90">{timeRange(s.date_debut, s.date_fin)}</div>
-                {presenceBadge && (
-                  <div className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${presenceBadge.color} border border-white`} title={presenceBadge.label} />
-                )}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
+      for (let day = 1; day <= daysInMonth; day++) {
+        const cellDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+        const isToday = isSameDay(cellDate, today);
+        const daySessions = sessionsByDay.get(day) || [];
+        days.push(
+          <div key={day} className={`p-2 border border-white/10 flex flex-col gap-1 relative ${isToday ? 'bg-purple-500/30' : ''}`}>
+            <span className={`font-semibold ${isToday ? 'text-purple-300' : 'text-white'}`}>{day}</span>
+            {daySessions.map((s) => {
+              try {
+                const presenceBadge = getPresenceBadge(s?.lcps?.[0]?.presence);
+                return (
+                  <button
+                    key={`${s.id_action_de_formation}-${s.id_creneau}`}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelected({ session: s, anchorDay: day });
+                    }}
+                    className="mt-1 text-left text-[11px] md:text-xs p-1 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40"
+                  >
+                    <div className={`block sm:hidden h-1.5 rounded-full ${getSessionBg(s)}`}>
+                      {presenceBadge && <div className={`absolute top-0 right-0 w-1.5 h-1.5 rounded-full ${presenceBadge.color}`} />}
+                    </div>
+                    <div className={`hidden sm:block p-1 rounded relative ${getSessionColor(s)}`}>
+                      <div className="font-medium truncate">{s.name || 'Session'}</div>
+                      <div className="opacity-90">{timeRange(s.date_debut, s.date_fin)}</div>
+                      {presenceBadge && (
+                        <div className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${presenceBadge.color} border border-white`} title={presenceBadge.label} />
+                      )}
+                    </div>
+                  </button>
+                );
+              } catch (err) {
+                console.error('Error rendering session:', s, err);
+                return null;
+              }
+            })}
+          </div>
+        );
+      }
+      return days;
+    } catch (err) {
+      console.error('Error building calendar:', err);
+      return [];
+    }
+  }, [error, loading, adfLoading, firstDayOfMonth, daysInMonth, currentDate, sessionsByDay, today]);
 
   return (
     <>
@@ -368,11 +438,15 @@ const CalendarPage = () => {
               </Button>
             </div>
           </div>
-          {(loading || adfLoading) && (
+          {error ? (
+            <ErrorState
+              title="Erreur de chargement du calendrier"
+              message={error?.message || "Impossible de charger vos sessions. Veuillez réessayer."}
+              onRetry={handleRetry}
+            />
+          ) : (loading || adfLoading) ? (
             <Skeleton className="h-[60vh] w-full rounded-md" />
-          )}
-          {error && <div className="text-red-300 mb-2 text-sm">{error}</div>}
-          {!(adfLoading || loading) && (
+          ) : (
             <>
               {view === 'month' && (
                 <>
@@ -472,11 +546,6 @@ const CalendarPage = () => {
               )}
             </>
           )}
-          {(!adfLoading && (adfError || (!loading && adfIds.length === 0))) && (
-            <div className="text-white/60 text-sm mt-2">
-              {adfError ? adfError : "Aucune ADF trouvée pour l'utilisateur."}
-            </div>
-          )}
         </div>
         {selected && (
           <div
@@ -537,4 +606,10 @@ const CalendarPage = () => {
   );
 };
 
-export default CalendarPage;
+const CalendarPageWithErrorBoundary = () => (
+  <ErrorBoundary>
+    <CalendarPage />
+  </ErrorBoundary>
+);
+
+export default CalendarPageWithErrorBoundary;

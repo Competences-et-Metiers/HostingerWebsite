@@ -5,16 +5,25 @@ import { Plus } from 'lucide-react';
 import AdfCompetencyCard from '@/components/AdfCompetencyCard';
 import { useAdfCompetencies, useAdfIds } from '@/hooks/useDendreoData';
 import { Skeleton } from '@/components/ui/skeleton';
+import ErrorState from '@/components/ErrorState';
+import { useQueryClient } from '@tanstack/react-query';
 
 const SkillsPages = () => {
+  const queryClient = useQueryClient();
+  
   // Get filtered ADF IDs (same approach as ProgressPage)
-  const { data: adfData, isLoading: adfLoading } = useAdfIds();
+  const { data: adfData, isLoading: adfLoading, error: adfError } = useAdfIds();
   const allowedAdfIds = Array.isArray(adfData?.adf_ids) ? adfData.adf_ids.map(String) : [];
   const adfTitles = adfData?.adf_titles || {};
   
   const { data, isLoading: competenciesLoading, error: queryError } = useAdfCompetencies();
-  const error = queryError?.message || null;
+  const error = adfError || queryError;
   const loading = adfLoading || competenciesLoading;
+  
+  const handleRetry = () => {
+    queryClient.invalidateQueries({ queryKey: ['adf-ids'] });
+    queryClient.invalidateQueries({ queryKey: ['adf-competencies'] });
+  };
   
   // Filter ADFs to only show allowed ones and merge with titles (frontend safety filter)
   const adfs = useMemo(() => {
@@ -55,7 +64,13 @@ const SkillsPages = () => {
         return null;
       })()}
 
-      {loading ? (
+      {error ? (
+        <ErrorState
+          title="Erreur de chargement"
+          message={error?.message || "Impossible de charger vos compétences. Veuillez réessayer."}
+          onRetry={handleRetry}
+        />
+      ) : loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
@@ -73,8 +88,10 @@ const SkillsPages = () => {
             </div>
           ))}
         </div>
-      ) : error ? (
-        <p className="text-red-300">{error}</p>
+      ) : adfs.length === 0 ? (
+        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20 text-center">
+          <p className="text-white/70">Aucune compétence disponible pour le moment.</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {adfs.map((adf, index) => (
@@ -87,9 +104,6 @@ const SkillsPages = () => {
               <AdfCompetencyCard adf={adf} />
             </motion.div>
           ))}
-          {!loading && adfs.length === 0 && (
-            <></>
-          )}
         </div>
       )}
     </section>
