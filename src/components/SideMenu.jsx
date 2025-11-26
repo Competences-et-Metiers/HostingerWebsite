@@ -6,16 +6,21 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 
-const menuItems = [
+const isDev = import.meta.env.DEV;
+
+const allMenuItems = [
   { icon: LayoutDashboard, label: "Tableau de bord", path: "/" },
   { icon: Star, label: "Compétences", path: "/skills" },
-  { icon: Target, label: "Objectifs", path: "/goals" },
+  { icon: Target, label: "Objectifs", path: "/goals", devOnly: true }, // WIP
   { icon: TrendingUp, label: "Progrès", path: "/progress" },
   { icon: BookOpen, label: "Ressources", path: "/resources" },
   { icon: Calendar, label: "Calendrier", path: "/calendar" },
   { icon: FileText, label: "Générateur de CV", path: "/cv-generator" },
   { icon: UserSquare, label: "Mon Consultant", path: "/consultant" },
 ];
+
+// Filter menu items based on environment
+const menuItems = allMenuItems.filter(item => !item.devOnly || isDev);
 
 const NavItem = ({ icon: Icon, label, path, delay, onClose, isOpen }) => {
   return (
@@ -112,16 +117,19 @@ const SideMenu = ({ isOpen, onClose, onToggle }) => {
         </nav>
       </div>
       <div className={`flex flex-col gap-1 px-2 ${isOpen ? '' : 'items-center'}`}>
-        <Button
-          variant="ghost"
-          size={isOpen ? 'default' : 'icon'}
-          onClick={handleSettings}
-          title="Paramètres"
-          className={`${isOpen ? 'h-10 w-full justify-start px-3' : 'h-10 w-10 justify-center'} text-white/80 hover:text-white hover:bg-white/10 rounded-md`}
-        >
-          <Settings className={`h-5 w-5 ${isOpen ? 'mr-3' : ''}`} />
-          {isOpen && <span className="text-sm font-medium truncate">Paramètres</span>}
-        </Button>
+        {/* WIP: Settings only available in development */}
+        {isDev && (
+          <Button
+            variant="ghost"
+            size={isOpen ? 'default' : 'icon'}
+            onClick={handleSettings}
+            title="Paramètres"
+            className={`${isOpen ? 'h-10 w-full justify-start px-3' : 'h-10 w-10 justify-center'} text-white/80 hover:text-white hover:bg-white/10 rounded-md`}
+          >
+            <Settings className={`h-5 w-5 ${isOpen ? 'mr-3' : ''}`} />
+            {isOpen && <span className="text-sm font-medium truncate">Paramètres</span>}
+          </Button>
+        )}
         <Button
           variant="ghost"
           size={isOpen ? 'default' : 'icon'}

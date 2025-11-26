@@ -1,15 +1,47 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import AdfCompetencyCard from '@/components/AdfCompetencyCard';
-import { useAdfCompetencies } from '@/hooks/useDendreoData';
+import { useAdfCompetencies, useAdfIds } from '@/hooks/useDendreoData';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const SkillsPages = () => {
-  const { data, isLoading: loading, error: queryError } = useAdfCompetencies();
+  // Get filtered ADF IDs (same approach as ProgressPage)
+  const { data: adfData, isLoading: adfLoading } = useAdfIds();
+  const allowedAdfIds = Array.isArray(adfData?.adf_ids) ? adfData.adf_ids.map(String) : [];
+  const adfTitles = adfData?.adf_titles || {};
+  
+  const { data, isLoading: competenciesLoading, error: queryError } = useAdfCompetencies();
   const error = queryError?.message || null;
-  const adfs = Array.isArray(data?.adfs) ? data.adfs : [];
+  const loading = adfLoading || competenciesLoading;
+  
+  // Filter ADFs to only show allowed ones and merge with titles (frontend safety filter)
+  const adfs = useMemo(() => {
+    const allAdfs = Array.isArray(data?.adfs) ? data.adfs : [];
+    
+    // If we have a filtered list, only show those ADFs
+    if (allowedAdfIds.length > 0) {
+      const filtered = allAdfs.filter(adf => 
+        allowedAdfIds.includes(String(adf.adf_id))
+      );
+      
+      // Merge ADF titles from get-adf function
+      const withTitles = filtered.map(adf => ({
+        ...adf,
+        title: adfTitles[String(adf.adf_id)] || adf.title || null
+      }));
+      
+      console.log(`[SkillsPages] Filtering: ${allAdfs.length} total ADFs → ${filtered.length} allowed ADFs (${allowedAdfIds.join(', ')})`);
+      return withTitles;
+    }
+    
+    // If no filtering, still merge titles
+    return allAdfs.map(adf => ({
+      ...adf,
+      title: adfTitles[String(adf.adf_id)] || adf.title || null
+    }));
+  }, [data?.adfs, allowedAdfIds, adfTitles]);
 
   
 

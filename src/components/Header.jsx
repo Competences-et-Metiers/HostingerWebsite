@@ -9,6 +9,7 @@ const Header = ({ onToggleNotifications, onToggleMenu, title, subtitle }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const userName = user?.user_metadata?.first_name || user?.email || 'Utilisateur';
+  const isDev = import.meta.env.DEV;
 
   const handleProfile = () => {
     navigate('/profile');
@@ -32,14 +33,17 @@ const Header = ({ onToggleNotifications, onToggleMenu, title, subtitle }) => {
           </div>
 
           <div className="flex items-center space-x-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onToggleNotifications}
-              className="text-white hover:bg-white/10"
-            >
-              <Bell className="h-5 w-5" />
-            </Button>
+            {/* WIP: Notifications only available in development */}
+            {isDev && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onToggleNotifications}
+                className="text-white hover:bg-white/10"
+              >
+                <Bell className="h-5 w-5" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"

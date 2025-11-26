@@ -8,6 +8,7 @@ import { useAdfIds, useMultipleAdfMetrics, useAdfMetrics } from '@/hooks/useDend
 import { useCalendarSessions } from '@/hooks/useCalendarData';
 import { useParticipantTaches } from '@/hooks/useTachesData';
 import { useToast } from '@/components/ui/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const Dashboard = () => {
   const [displayedProgress, setDisplayedProgress] = useState(0);
@@ -17,16 +18,17 @@ const Dashboard = () => {
   // Use cached hooks
   const { data: adfData } = useAdfIds();
   const adfIds = Array.isArray(adfData?.adf_ids) ? adfData.adf_ids.map(String) : [];
+  const adfTitles = adfData?.adf_titles || {};
   const participantId = adfData?.id_participant;
   const extranetCode = adfData?.extranet_code_numeric || 
     (adfData?.extranet_code ? String(adfData.extranet_code).replace(/[^0-9]/g, '') : null);
   const { data: allMetrics } = useMultipleAdfMetrics(adfIds);
   
   // Fetch calendar sessions with caching
-  const { data: sessions = [] } = useCalendarSessions(participantId, adfIds);
+  const { data: sessions = [], isLoading: sessionsLoading } = useCalendarSessions(participantId, adfIds);
   
   // Fetch participant tasks (e-signatures, etc.)
-  const { data: tachesData } = useParticipantTaches(participantId);
+  const { data: tachesData, isLoading: tachesLoading } = useParticipantTaches(participantId);
   
   // Extract e-signatures
   const pendingEsignatures = useMemo(() => {
@@ -275,7 +277,27 @@ const Dashboard = () => {
       </div>
 
       {/* Pending E-signatures Section */}
-      {pendingEsignatures.length > 0 && (
+      {tachesLoading ? (
+        <div className="mt-8 bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+          <div className="flex items-center gap-3 mb-6">
+            <Skeleton className="w-12 h-12 rounded-lg" />
+            <div className="flex-1">
+              <Skeleton className="h-7 w-64 mb-2" />
+              <Skeleton className="h-4 w-48" />
+            </div>
+          </div>
+          <div className="space-y-3">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="bg-white/5 rounded-lg p-4">
+                <Skeleton className="h-5 w-3/4 mb-3" />
+                <Skeleton className="h-4 w-1/2 mb-2" />
+                <Skeleton className="h-4 w-1/3 mb-3" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : pendingEsignatures.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -356,7 +378,20 @@ const Dashboard = () => {
           Prochaines sessions
         </h3>
         
-        {upcomingSessions.length === 0 ? (
+        {sessionsLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+                <Skeleton className="h-6 w-3/4 mb-4" />
+                <div className="space-y-2 mb-4">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ))}
+          </div>
+        ) : upcomingSessions.length === 0 ? (
           <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
             <p className="text-white/70 text-center">Aucune session à venir pour le moment</p>
           </div>
@@ -373,9 +408,16 @@ const Dashboard = () => {
                   className={`bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 hover:border-white/40 transition-all hover:shadow-xl relative`}
                 >
                   <div className="flex items-start justify-between mb-4">
-                    <h4 className="text-white font-bold text-lg flex-1">
-                      {session.name || 'Session'}
-                    </h4>
+                    <div className="flex-1">
+                      <h4 className="text-white font-bold text-lg">
+                        {session.name || 'Session'}
+                      </h4>
+                      {adfTitles[String(session.id_action_de_formation)] && (
+                        <p className="text-purple-300 text-sm mt-1">
+                          {adfTitles[String(session.id_action_de_formation)]}
+                        </p>
+                      )}
+                    </div>
                     <div className="flex-shrink-0 ml-2">
                       {session.lcps?.[0]?.presence === '1' && (
                         <div className="w-3 h-3 rounded-full bg-green-400 border border-white" title="Présence confirmée" />
@@ -430,6 +472,11 @@ const Dashboard = () => {
             <div className="flex items-start justify-between gap-4 mb-6">
               <div>
                 <div className="text-white font-bold text-xl">{selectedSession.name || 'Session'}</div>
+                {adfTitles[String(selectedSession.id_action_de_formation)] && (
+                  <div className="text-purple-300 text-sm mt-1">
+                    {adfTitles[String(selectedSession.id_action_de_formation)]}
+                  </div>
+                )}
                 <div className="text-purple-200 text-sm mt-1">
                   {formatSessionTime(selectedSession.startDate, selectedSession.endDate)}
                 </div>

@@ -10,6 +10,7 @@ const ProgressPage = () => {
   // Fetch ADF IDs with caching
   const { data: adfData, isLoading: adfLoading, error: adfError } = useAdfIds();
   const adfIds = Array.isArray(adfData?.adf_ids) ? adfData.adf_ids.map(String) : [];
+  const adfTitles = adfData?.adf_titles || {};
   
   // Fetch metrics for all ADFs with caching
   const { data: metrics, isLoading: loading, isError } = useMultipleAdfMetrics(adfIds);
@@ -20,9 +21,11 @@ const ProgressPage = () => {
       const spent = Math.max(0, m.spent_hours || 0);
       const total = Math.max(0, m.total_hours || 0);
       const pct = total > 0 ? Math.min(100, Math.round((spent / total) * 100)) : 0;
-      return { id: m.id, title: m.title, spent, total, pct };
+      // Use title from metrics, fallback to adf_titles from get-adf
+      const title = m.title || adfTitles[String(m.id)] || null;
+      return { id: m.id, title, spent, total, pct };
     });
-  }, [metrics]);
+  }, [metrics, adfTitles]);
 
   return (
     <>

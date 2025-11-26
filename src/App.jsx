@@ -19,6 +19,7 @@ import { useAuth } from '@/contexts/SupabaseAuthContext';
 
 function App() {
   const { session, loading } = useAuth();
+  const isDev = import.meta.env.DEV;
 
   if (loading) {
     return (
@@ -43,14 +44,16 @@ function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="skills" element={<SkillsPages />} />
-          <Route path="goals" element={<GoalsPage />} />
+          {/* WIP: Only available in development */}
+          {isDev && <Route path="goals" element={<GoalsPage />} />}
           <Route path="progress" element={<ProgressPage />} />
           <Route path="resources" element={<ResourcesPage />} />
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="cv-generator" element={<CVGeneratorPage />} />
           <Route path="consultant" element={<ConsultantPage />} />
           <Route path="profile" element={<ProfilePage />} />
-          <Route path="settings" element={<SettingsPage />} />
+          {/* WIP: Only available in development */}
+          {isDev && <Route path="settings" element={<SettingsPage />} />}
           <Route path="*" element={<Navigate to="/" />} />
         </Route>
       </Routes>

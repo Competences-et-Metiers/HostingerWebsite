@@ -236,9 +236,12 @@ serve(async (req) => {
       });
     }
 
-    // Try to get from cache
+    // Check for cache bypass parameter
+    const bypassCache = url.searchParams.get("bypass_cache") === "true";
+    
+    // Try to get from cache (unless bypassed)
     const cacheKey = ["adf-competencies", email];
-    if (kv) {
+    if (kv && !bypassCache) {
       try {
         const cached = await kv.get(cacheKey);
         if (cached.value && typeof cached.value === "object") {
@@ -252,6 +255,8 @@ serve(async (req) => {
         console.warn("[adf-competencies] Cache read error:", e);
         // Continue without cache
       }
+    } else if (bypassCache) {
+      console.log(`[adf-competencies] 🔄 Cache bypassed for ${email}`);
     }
 
     let participantId: string | null = null;
@@ -320,10 +325,12 @@ serve(async (req) => {
     const allowedSet = (allowedAdfIds && allowedAdfIds.length > 0) ? new Set(allowedAdfIds) : null;
     
     if (allowedSet) {
-      console.log(`[adf-competencies] Filtering enabled: will only return ADFs ${Array.from(allowedSet).join(", ")}`);
+      console.log(`[adf-competencies] ✅ Filtering enabled: will only return ${allowedSet.size} ADFs: ${Array.from(allowedSet).join(", ")}`);
     } else {
-      console.log("[adf-competencies] No filter applied: will return all category 6 ADFs with evaluations");
+      console.warn("[adf-competencies] ⚠️ No filter applied - get-adf may have failed. Will return all category 6 ADFs with evaluations");
     }
+    
+    console.log(`[adf-competencies] participantId: ${participantId}, allowedSet: ${allowedSet ? `${allowedSet.size} ADFs` : 'null'}`);
 
     const apiKey = (Deno.env.get("DENDREO_API_KEY") || "").trim();
     if (!apiKey) {
@@ -598,10 +605,20 @@ serve(async (req) => {
       });
     }
 
-    const adfs = Array.from(adfMap.values()).map((g) => ({
+    let adfs = Array.from(adfMap.values()).map((g) => ({
       ...g,
       evaluations: Array.isArray(g.evaluations) ? g.evaluations : [],
     }));
+    
+    // Final safety filter: if we have allowedSet, ensure only those ADFs are in final response
+    if (allowedSet) {
+      const beforeCount = adfs.length;
+      adfs = adfs.filter(adf => allowedSet.has(adf.adf_id));
+      if (beforeCount !== adfs.length) {
+        console.warn(`[adf-competencies] 🔒 Final filter removed ${beforeCount - adfs.length} ADFs not in allowed set`);
+      }
+    }
+    
     adfs.sort((a, b) => {
       const titleA = a.title ?? "";
       const titleB = b.title ?? "";
@@ -610,6 +627,8 @@ serve(async (req) => {
       if (titleB) return 1;
       return a.adf_id.localeCompare(b.adf_id);
     });
+    
+    console.log(`[adf-competencies] 📊 Final response: ${adfs.length} ADFs: ${adfs.map(a => a.adf_id).join(", ")}`);
 
     const responseData = { email, id_participant: participantId, adfs };
     
